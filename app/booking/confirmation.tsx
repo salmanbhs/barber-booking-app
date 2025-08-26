@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { CircleCheck as CheckCircle, Calendar, Chrome as Home } from 'lucide-react-native';
-import { Colors } from '@/constants/Colors';
+import { Colors, Theme } from '@/constants/Colors';
 
 export default function ConfirmationScreen() {
   const handleBackToDashboard = () => {

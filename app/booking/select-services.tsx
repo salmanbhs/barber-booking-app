@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, ArrowRight } from 'lucide-react-native';
 import { ServiceCard } from '@/components/ServiceCard';
 import { mockServices } from '@/data/mockData';
-import { Colors } from '@/constants/Colors';
+import { Colors, Theme } from '@/constants/Colors';
 
 export default function SelectServicesScreen() {
   const { barberId } = useLocalSearchParams();
