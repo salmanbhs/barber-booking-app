@@ -6,9 +6,19 @@ import { Colors, Theme } from '@/constants/Colors';
 
 export default function OTPScreen() {
   const { phone } = useLocalSearchParams();
+  const phoneNumber = Array.isArray(phone) ? phone[0] : phone;
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(30);
+
+  // Safety check to prevent rendering issues
+  if (!phoneNumber) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Loading...</Text>
+      </View>
+    );
+  }
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -24,23 +34,76 @@ export default function OTPScreen() {
       return;
     }
 
+    if (!phoneNumber) {
+      Alert.alert('Error', 'Phone number is missing');
+      return;
+    }
+
     setLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      if (otp === '123456') {
+    try {
+      const response = await fetch('https://barber-api-three.vercel.app/api/auth/verify-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: phoneNumber,
+          token: otp,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // OTP verified successfully
         router.replace('/(tabs)');
       } else {
-        Alert.alert('Error', 'Invalid OTP. Please try again.');
+        Alert.alert('Error', data.message || 'Invalid OTP. Please try again.');
       }
-    }, 1000);
+    } catch (error) {
+      console.error('OTP Verification Error:', error);
+      Alert.alert('Error', 'Network error. Please check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleResendOTP = () => {
+  const handleResendOTP = async () => {
     if (countdown > 0) return;
-    setCountdown(30);
-    Alert.alert('Success', 'OTP sent successfully');
+    
+    if (!phoneNumber) {
+      Alert.alert('Error', 'Phone number is missing');
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      const response = await fetch('https://barber-api-three.vercel.app/api/auth/send-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: phoneNumber,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setCountdown(30);
+        Alert.alert('Success', 'OTP sent successfully');
+      } else {
+        Alert.alert('Error', data.message || 'Failed to resend OTP. Please try again.');
+      }
+    } catch (error) {
+      console.error('Resend OTP Error:', error);
+      Alert.alert('Error', 'Network error. Please check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -52,21 +115,23 @@ export default function OTPScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Verification Code</Text>
         <Text style={styles.subtitle}>
-          We've sent a 6-digit code to {phone}
+          We've sent a 6-digit code to {phoneNumber || 'your phone'}
         </Text>
       </View>
 
       <View style={styles.form}>
-          <TextInput
-            style={styles.otpInput}
-            value={otp}
-            onChangeText={setOtp}
-            keyboardType="numeric"
-            maxLength={6}
-            placeholder="000000"
-            placeholderTextColor={Colors.gray400}
-            textAlign="center"
-          />        <TouchableOpacity
+        <TextInput
+          style={styles.otpInput}
+          value={otp}
+          onChangeText={setOtp}
+          keyboardType="numeric"
+          maxLength={6}
+          placeholder="000000"
+          placeholderTextColor={Colors.gray400}
+          textAlign="center"
+        />
+        
+        <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
           onPress={handleVerifyOTP}
           disabled={loading}
@@ -87,7 +152,7 @@ export default function OTPScreen() {
               styles.resendButton,
               countdown > 0 && styles.resendDisabled
             ]}>
-              {countdown > 0 ? `Resend in ${countdown}s` : 'Resend OTP'}
+              {countdown > 0 ? `Resend in ${Math.max(0, countdown)}s` : 'Resend OTP'}
             </Text>
           </TouchableOpacity>
         </View>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { Phone, ArrowRight } from 'lucide-react-native';
 import { Colors, Theme } from '@/constants/Colors';
@@ -9,43 +9,72 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleSendOTP = async () => {
-    if (!phoneNumber || phoneNumber.length !== 8) {
+    if (!phoneNumber || phoneNumber.length < 8) {
       Alert.alert('Error', 'Please enter a valid phone number');
       return;
     }
 
     setLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      router.push({
-        pathname: '/otp',
-        params: { phone: phoneNumber }
+
+    try {
+      const response = await fetch('https://barber-api-three.vercel.app/api/auth/send-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: phoneNumber,
+        }),
       });
-    }, 1500);
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // OTP sent successfully - navigate directly
+        router.push({
+          pathname: '/otp',
+          params: { phone: phoneNumber }
+        });
+      } else {
+        // Handle API errors
+        Alert.alert('Error', data.message || 'Failed to send OTP. Please try again.');
+      }
+    } catch (error) {
+      console.error('OTP Send Error:', error);
+      Alert.alert('Error', 'Network error. Please check your connection and try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Welcome to</Text>
-        <Text style={styles.brandName}>BarberBook</Text>
-        <Text style={styles.subtitle}>Book your perfect cut</Text>
-      </View>
-
-      <View style={styles.form}>
-        <View style={styles.inputContainer}>
-          <Phone size={20} color={Colors.gray500} style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your phone number"
-            value={phoneNumber}
-            onChangeText={setPhoneNumber}
-            keyboardType="phone-pad"
-            placeholderTextColor={Colors.gray400}
-          />
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <Text style={styles.title}>Welcome to</Text>
+          <Text style={styles.brandName}>BarberBook</Text>
+          <Text style={styles.subtitle}>Book your perfect cut</Text>
         </View>
+
+        <View style={styles.form}>
+          <View style={styles.inputContainer}>
+            <Phone size={20} color={Colors.gray500} style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your phone number"
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              keyboardType="phone-pad"
+              placeholderTextColor={Colors.gray400}
+            />
+          </View>
 
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
@@ -57,12 +86,13 @@ export default function LoginScreen() {
           </Text>
           <ArrowRight size={20} color="white" />
         </TouchableOpacity>
-      </View>
+        </View>
 
-      <Text style={styles.terms}>
-        By continuing, you agree to our Terms of Service and Privacy Policy
-      </Text>
-    </View>
+        <Text style={styles.terms}>
+          By continuing, you agree to our Terms of Service and Privacy Policy
+        </Text>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -70,8 +100,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Theme.colors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 24,
     justifyContent: 'center',
+    paddingTop: 60,
+    paddingBottom: 40,
   },
   header: {
     alignItems: 'center',
