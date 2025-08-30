@@ -3,11 +3,31 @@ import { User, Phone, Calendar, Clock, LogOut, ChevronRight, Palette } from 'luc
 import { router } from 'expo-router';
 import { Colors, Theme } from '@/constants/Colors';
 import { AuthStorage } from '@/utils/authStorage';
+import { useState, useEffect } from 'react';
 
 export default function ProfileScreen() {
+  const [userName, setUserName] = useState<string>('Guest');
+  const [userPhone, setUserPhone] = useState<string>('');
+
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      const name = await AuthStorage.getUserName();
+      const phone = await AuthStorage.getUserPhone();
+      
+      if (name) setUserName(name);
+      if (phone) setUserPhone(phone);
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
+
   const profileItems = [
-    { icon: User, label: 'Personal Information', value: 'John Doe' },
-    { icon: Phone, label: 'Phone Number', value: '+1 (555) 123-4567' },
+    { icon: User, label: 'Personal Information', value: userName },
+    { icon: Phone, label: 'Phone Number', value: userPhone || 'Not available' },
     { icon: Calendar, label: 'Total Bookings', value: '12 appointments' },
     { icon: Clock, label: 'Member Since', value: 'January 2024' },
   ];
@@ -52,7 +72,7 @@ export default function ProfileScreen() {
           <View style={styles.avatar}>
             <User size={32} color={Colors.primary} />
           </View>
-          <Text style={styles.name}>John Doe</Text>
+          <Text style={styles.name}>{userName}</Text>
           <Text style={styles.memberInfo}>Premium Member</Text>
         </View>
 

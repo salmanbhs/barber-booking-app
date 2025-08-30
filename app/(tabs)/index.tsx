@@ -2,12 +2,50 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList } from '
 import { router } from 'expo-router';
 import { Plus, Calendar, Clock, User, MoveVertical as MoreVertical } from 'lucide-react-native';
 import { BookingCard } from '@/components/BookingCard';
+import NameCollectionPopup from '@/components/NameCollectionPopup';
 import { mockBookings } from '@/data/mockData';
 import { Colors, Theme } from '@/constants/Colors';
+import { AuthStorage } from '@/utils/authStorage';
+import { useState, useEffect } from 'react';
 
 export default function DashboardScreen() {
+  const [userName, setUserName] = useState<string | null>(null);
+  const [showNamePopup, setShowNamePopup] = useState(false);
+  const [loading, setLoading] = useState(true);
+
   const upcomingBookings = mockBookings.filter(booking => booking.status === 'confirmed');
   const pastBookings = mockBookings.filter(booking => booking.status === 'completed');
+
+  useEffect(() => {
+    checkUserName();
+  }, []);
+
+  const checkUserName = async () => {
+    try {
+      const hasName = await AuthStorage.hasUserName();
+      if (hasName) {
+        const name = await AuthStorage.getUserName();
+        setUserName(name);
+      } else {
+        setShowNamePopup(true);
+      }
+    } catch (error) {
+      console.error('Error checking user name:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveName = async (name: string) => {
+    try {
+      await AuthStorage.saveUserName(name);
+      setUserName(name);
+      setShowNamePopup(false);
+    } catch (error) {
+      console.error('Error saving user name:', error);
+      throw error;
+    }
+  };
 
   const handleNewBooking = () => {
     router.push('/booking/select-barber');
@@ -26,7 +64,7 @@ export default function DashboardScreen() {
               return 'Good night,';
             })()}
             </Text>
-          <Text style={styles.userName}>John Doe</Text>
+          <Text style={styles.userName}>{userName || 'Guest'}</Text>
         </View>
         <TouchableOpacity style={styles.profileButton}>
           <User size={24} color={Colors.gray500} />
@@ -91,6 +129,12 @@ export default function DashboardScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Name Collection Popup */}
+      <NameCollectionPopup
+        visible={showNamePopup}
+        onSave={handleSaveName}
+      />
     </View>
   );
 }

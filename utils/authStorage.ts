@@ -4,6 +4,7 @@ const AUTH_KEY = 'barber_app_auth';
 
 export interface UserData {
   phone: string;
+  name?: string;
   isAuthenticated: boolean;
   loginTimestamp: number;
 }
@@ -69,6 +70,44 @@ export const AuthStorage = {
     } catch (error) {
       console.error('Error getting user phone:', error);
       return null;
+    }
+  },
+
+  // Save user name
+  async saveUserName(name: string): Promise<void> {
+    try {
+      const authData = await this.getAuthData();
+      if (authData) {
+        const updatedData: UserData = {
+          ...authData,
+          name,
+        };
+        await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(updatedData));
+      }
+    } catch (error) {
+      console.error('Error saving user name:', error);
+    }
+  },
+
+  // Get user name
+  async getUserName(): Promise<string | null> {
+    try {
+      const authData = await this.getAuthData();
+      return authData?.name || null;
+    } catch (error) {
+      console.error('Error getting user name:', error);
+      return null;
+    }
+  },
+
+  // Check if user has name
+  async hasUserName(): Promise<boolean> {
+    try {
+      const name = await this.getUserName();
+      return !!name && name.trim().length > 0;
+    } catch (error) {
+      console.error('Error checking user name:', error);
+      return false;
     }
   },
 };
