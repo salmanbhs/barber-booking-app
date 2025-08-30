@@ -17,12 +17,25 @@ export default function DashboardScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Good morning,</Text>
+            <Text style={styles.greeting}>
+            {(() => {
+              const hour = new Date().getHours();
+              if (hour < 12) return 'Good morning,';
+              if (hour < 15) return 'Good afternoon,';
+              if (hour < 22) return 'Good evening,';
+              return 'Good night,';
+            })()}
+            </Text>
           <Text style={styles.userName}>John Doe</Text>
         </View>
         <TouchableOpacity style={styles.profileButton}>
           <User size={24} color={Colors.gray500} />
         </TouchableOpacity>
+
+        {/* Block text to show as header */}
+        {/* <Text style={{ fontSize: 32, fontFamily: 'Inter-Bold', color: Theme.colors.surface, backgroundColor: Theme.colors.primary, textAlign: 'center', flex: 1 }}>
+          حَــــلاق حــــسَـــن
+        </Text> */}
       </View>
 
       <TouchableOpacity style={styles.newBookingButton} onPress={handleNewBooking}>

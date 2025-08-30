@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'reac
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Check } from 'lucide-react-native';
 import { Colors, Theme } from '@/constants/Colors';
+import { AuthStorage } from '@/utils/authStorage';
 
 export default function OTPScreen() {
   const { phone } = useLocalSearchParams();
@@ -56,7 +57,8 @@ export default function OTPScreen() {
       const data = await response.json();
 
       if (response.ok) {
-        // OTP verified successfully
+        // OTP verified successfully - save auth data
+        await AuthStorage.saveAuthData(phoneNumber);
         router.replace('/(tabs)');
       } else {
         Alert.alert('Error', data.message || 'Invalid OTP. Please try again.');

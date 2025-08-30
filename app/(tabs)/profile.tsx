@@ -1,7 +1,8 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { User, Phone, Calendar, Clock, LogOut, ChevronRight, Palette } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { Colors, Theme } from '@/constants/Colors';
+import { AuthStorage } from '@/utils/authStorage';
 
 export default function ProfileScreen() {
   const profileItems = [
@@ -10,6 +11,35 @@ export default function ProfileScreen() {
     { icon: Calendar, label: 'Total Bookings', value: '12 appointments' },
     { icon: Clock, label: 'Member Since', value: 'January 2024' },
   ];
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Clear authentication data first
+              await AuthStorage.clearAuthData();
+              
+              // Use router.push to navigate to login
+              router.push('/');
+            } catch (error) {
+              console.error('Error signing out:', error);
+              Alert.alert('Error', 'Failed to sign out. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -61,7 +91,7 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.section}>
-          <TouchableOpacity style={styles.logoutButton}>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <LogOut size={20} color={Colors.error} />
             <Text style={styles.logoutText}>Sign Out</Text>
           </TouchableOpacity>
