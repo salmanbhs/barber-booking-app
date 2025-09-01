@@ -6,7 +6,9 @@ import NameCollectionPopup from '@/components/NameCollectionPopup';
 import { mockBookings } from '@/data/mockData';
 import { Colors, Theme } from '@/constants/Colors';
 import { AuthStorage } from '@/utils/authStorage';
+import { ApiService } from '@/utils/apiService';
 import { useState, useEffect } from 'react';
+import '@/utils/debugUtils'; // Import debug utils for console access
 
 export default function DashboardScreen() {
   const [userName, setUserName] = useState<string | null>(null);
@@ -22,15 +24,53 @@ export default function DashboardScreen() {
 
   const checkUserName = async () => {
     try {
-      const hasName = await AuthStorage.hasUserName();
-      if (hasName) {
-        const name = await AuthStorage.getUserName();
-        setUserName(name);
+      // First, try to fetch the profile from the API
+      const profileResult = await ApiService.getCustomerProfile();
+      
+      if (profileResult.success && profileResult.data?.data?.customer?.name) {
+        const customer = profileResult.data.data.customer;
+        const apiName = customer.name;
+        console.log('📋 Found name in API profile:', apiName);
+        
+        // Save the complete customer profile locally
+        await AuthStorage.saveCustomerProfile({
+          name: customer.name,
+          customerId: customer.id,
+          email: customer.email,
+          totalVisits: customer.total_visits,
+          totalSpent: customer.total_spent,
+        });
+        
+        setUserName(apiName);
       } else {
-        setShowNamePopup(true);
+        console.log('📋 No name found in API profile, checking local storage');
+        
+        // Fallback to local storage
+        const hasName = await AuthStorage.hasUserName();
+        if (hasName) {
+          const localName = await AuthStorage.getUserName();
+          setUserName(localName);
+        } else {
+          console.log('📋 No name found locally, showing name popup');
+          setShowNamePopup(true);
+        }
       }
     } catch (error) {
       console.error('Error checking user name:', error);
+      
+      // Fallback to local storage on API error
+      try {
+        const hasName = await AuthStorage.hasUserName();
+        if (hasName) {
+          const localName = await AuthStorage.getUserName();
+          setUserName(localName);
+        } else {
+          setShowNamePopup(true);
+        }
+      } catch (localError) {
+        console.error('Error checking local name:', localError);
+        setShowNamePopup(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -38,7 +78,8 @@ export default function DashboardScreen() {
 
   const handleSaveName = async (name: string) => {
     try {
-      await AuthStorage.saveUserName(name);
+      // The API call is now handled in the NameCollectionPopup component
+      // This function will only be called after successful API update
       setUserName(name);
       setShowNamePopup(false);
     } catch (error) {

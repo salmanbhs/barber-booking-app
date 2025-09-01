@@ -7,20 +7,33 @@ export interface UserData {
   name?: string;
   isAuthenticated: boolean;
   loginTimestamp: number;
+  accessToken?: string;
+  userId?: string;
+  email?: string;
+  customerId?: string;
+  totalVisits?: number;
+  totalSpent?: number;
 }
 
 export const AuthStorage = {
   // Save user authentication data
-  async saveAuthData(phone: string): Promise<void> {
+  async saveAuthData(phone: string, accessToken?: string, additionalData?: {
+    userId?: string;
+    email?: string;
+  }): Promise<void> {
     try {
       const authData: UserData = {
         phone,
         isAuthenticated: true,
         loginTimestamp: Date.now(),
+        accessToken,
+        userId: additionalData?.userId,
+        email: additionalData?.email,
       };
       await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(authData));
     } catch (error) {
       console.error('Error saving auth data:', error);
+      throw error;
     }
   },
 
@@ -86,6 +99,7 @@ export const AuthStorage = {
       }
     } catch (error) {
       console.error('Error saving user name:', error);
+      throw error;
     }
   },
 
@@ -108,6 +122,50 @@ export const AuthStorage = {
     } catch (error) {
       console.error('Error checking user name:', error);
       return false;
+    }
+  },
+
+  // Manually set access token (for testing)
+  async setAccessToken(token: string): Promise<void> {
+    try {
+      const authData = await this.getAuthData();
+      if (authData) {
+        const updatedData: UserData = {
+          ...authData,
+          accessToken: token,
+        };
+        await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(updatedData));
+      }
+    } catch (error) {
+      console.error('Error setting access token:', error);
+      throw error;
+    }
+  },
+
+  // Save customer profile data
+  async saveCustomerProfile(profileData: {
+    name?: string;
+    customerId?: string;
+    email?: string;
+    totalVisits?: number;
+    totalSpent?: number;
+  }): Promise<void> {
+    try {
+      const authData = await this.getAuthData();
+      if (authData) {
+        const updatedData: UserData = {
+          ...authData,
+          name: profileData.name || authData.name,
+          customerId: profileData.customerId || authData.customerId,
+          email: profileData.email || authData.email,
+          totalVisits: profileData.totalVisits ?? authData.totalVisits,
+          totalSpent: profileData.totalSpent ?? authData.totalSpent,
+        };
+        await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(updatedData));
+      }
+    } catch (error) {
+      console.error('Error saving customer profile:', error);
+      throw error;
     }
   },
 };

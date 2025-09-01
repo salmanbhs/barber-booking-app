@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Check } from 'lucide-react-native';
 import { Colors, Theme } from '@/constants/Colors';
 import { AuthStorage } from '@/utils/authStorage';
+import { ApiService } from '@/utils/apiService';
 
 export default function OTPScreen() {
   const { phone } = useLocalSearchParams();
@@ -11,6 +12,14 @@ export default function OTPScreen() {
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(30);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   // Safety check to prevent rendering issues
   if (!phoneNumber) {
@@ -20,14 +29,6 @@ export default function OTPScreen() {
       </View>
     );
   }
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
 
   const handleVerifyOTP = async () => {
     if (otp.length !== 6) {
@@ -43,25 +44,43 @@ export default function OTPScreen() {
     setLoading(true);
     
     try {
-      const response = await fetch('https://barber-api-three.vercel.app/api/auth/verify-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phone: phoneNumber,
-          token: otp,
-        }),
-      });
+      const result = await ApiService.verifyOTP(phoneNumber, otp);
 
-      const data = await response.json();
-
-      if (response.ok) {
-        // OTP verified successfully - save auth data
-        await AuthStorage.saveAuthData(phoneNumber);
+      if (result.success) {
+        // OTP verified successfully - save auth data with access token
+        console.log('🔧 OTP verification result:', JSON.stringify(result, null, 2));
+        console.log('🔧 Available fields in response:', Object.keys(result.data || {}));
+        
+        // Extract access token from the response structure
+        const accessToken = result.data?.session?.access_token || 
+                          result.data?.accessToken || 
+                          result.data?.token || 
+                          result.data?.access_token ||
+                          result.data?.authToken ||
+                          result.data?.jwt;
+                          
+        console.log('🔧 Extracted access token:', accessToken ? `Found (${accessToken.substring(0, 20)}...)` : 'Not found');
+        
+        if (!accessToken) {
+          console.warn('⚠️ No access token found in OTP response. This might be a backend issue.');
+          console.log('📋 Full response data:', result.data);
+          // Still save the auth data, but without token for now
+          await AuthStorage.saveAuthData(phoneNumber);
+        } else {
+          // Extract additional user information
+          const userId = result.data?.user?.id || result.data?.session?.user?.id;
+          const email = result.data?.user?.email || result.data?.session?.user?.email;
+          
+          console.log('🔧 Saving auth data with token and user info');
+          await AuthStorage.saveAuthData(phoneNumber, accessToken, {
+            userId,
+            email
+          });
+        }
+        
         router.replace('/(tabs)');
       } else {
-        Alert.alert('Error', data.message || 'Invalid OTP. Please try again.');
+        Alert.alert('Error', result.message || 'Invalid OTP. Please try again.');
       }
     } catch (error) {
       console.error('OTP Verification Error:', error);
@@ -82,23 +101,13 @@ export default function OTPScreen() {
     setLoading(true);
     
     try {
-      const response = await fetch('https://barber-api-three.vercel.app/api/auth/send-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phone: phoneNumber,
-        }),
-      });
+      const result = await ApiService.sendOTP(phoneNumber);
 
-      const data = await response.json();
-
-      if (response.ok) {
+      if (result.success) {
         setCountdown(30);
         Alert.alert('Success', 'OTP sent successfully');
       } else {
-        Alert.alert('Error', data.message || 'Failed to resend OTP. Please try again.');
+        Alert.alert('Error', result.message || 'Failed to resend OTP. Please try again.');
       }
     } catch (error) {
       console.error('Resend OTP Error:', error);

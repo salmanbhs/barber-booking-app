@@ -1,13 +1,17 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { User, Phone, Calendar, Clock, LogOut, ChevronRight, Palette } from 'lucide-react-native';
+import { User, Phone, Calendar, Clock, LogOut, ChevronRight, Palette, Edit } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { Colors, Theme } from '@/constants/Colors';
 import { AuthStorage } from '@/utils/authStorage';
+import { ApiService } from '@/utils/apiService';
+import NameCollectionPopup from '@/components/NameCollectionPopup';
 import { useState, useEffect } from 'react';
 
 export default function ProfileScreen() {
   const [userName, setUserName] = useState<string>('Guest');
   const [userPhone, setUserPhone] = useState<string>('');
+  const [showNameEditPopup, setShowNameEditPopup] = useState(false);
+  const [customerData, setCustomerData] = useState<any>(null);
 
   useEffect(() => {
     loadUserData();
@@ -15,22 +19,91 @@ export default function ProfileScreen() {
 
   const loadUserData = async () => {
     try {
-      const name = await AuthStorage.getUserName();
-      const phone = await AuthStorage.getUserPhone();
+      // Try to fetch latest data from API first
+      const profileResult = await ApiService.getCustomerProfile();
       
-      if (name) setUserName(name);
-      if (phone) setUserPhone(phone);
+      if (profileResult.success && profileResult.data?.data?.customer) {
+        const customer = profileResult.data.data.customer;
+        setCustomerData(customer);
+        setUserName(customer.name || 'Guest');
+        setUserPhone(customer.phone || '');
+      } else {
+        // Fallback to local storage
+        const name = await AuthStorage.getUserName();
+        const phone = await AuthStorage.getUserPhone();
+        
+        if (name) setUserName(name);
+        if (phone) setUserPhone(phone);
+      }
     } catch (error) {
       console.error('Error loading user data:', error);
+      
+      // Fallback to local storage on error
+      try {
+        const name = await AuthStorage.getUserName();
+        const phone = await AuthStorage.getUserPhone();
+        
+        if (name) setUserName(name);
+        if (phone) setUserPhone(phone);
+      } catch (localError) {
+        console.error('Error loading local user data:', localError);
+      }
     }
   };
 
   const profileItems = [
-    { icon: User, label: 'Personal Information', value: userName },
-    { icon: Phone, label: 'Phone Number', value: userPhone || 'Not available' },
-    { icon: Calendar, label: 'Total Bookings', value: '12 appointments' },
-    { icon: Clock, label: 'Member Since', value: 'January 2024' },
+    { 
+      icon: User, 
+      label: 'Personal Information', 
+      value: userName,
+      onPress: () => setShowNameEditPopup(true),
+      showEdit: true
+    },
+    { 
+      icon: Phone, 
+      label: 'Phone Number', 
+      value: userPhone || 'Not available',
+      showEdit: false
+    },
+    { 
+      icon: Calendar, 
+      label: 'Total Bookings', 
+      value: customerData ? `${customerData.total_visits || 0} appointments` : '0 appointments',
+      showEdit: false
+    },
+    { 
+      icon: Clock, 
+      label: 'Total Spent', 
+      value: customerData ? `$${customerData.total_spent || 0}` : '$0',
+      showEdit: false
+    },
   ];
+
+  const handleEditName = async (newName: string) => {
+    try {
+      // Update the name via API
+      const result = await ApiService.updateCustomerProfile({ name: newName });
+      
+      if (result.success) {
+        // Save locally and update UI
+        await AuthStorage.saveUserName(newName);
+        setUserName(newName);
+        setShowNameEditPopup(false);
+        
+        // Update customer data if available
+        if (customerData) {
+          setCustomerData({ ...customerData, name: newName });
+        }
+        
+        Alert.alert('Success', 'Your name has been updated successfully!');
+      } else {
+        Alert.alert('Error', result.message || 'Failed to update name. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error updating name:', error);
+      Alert.alert('Error', 'Failed to update name. Please try again.');
+    }
+  };
 
   const handleLogout = async () => {
     Alert.alert(
@@ -95,17 +168,27 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account Information</Text>
           {profileItems.map((item, index) => (
-            <TouchableOpacity key={index} style={styles.profileItem}>
+            <TouchableOpacity 
+              key={index} 
+              style={styles.profileItem}
+              onPress={item.onPress}
+              disabled={!item.onPress}
+            >
               <View style={styles.itemLeft}>
                 <View style={styles.itemIcon}>
                   <item.icon size={20} color={Colors.gray500} />
                 </View>
-                <View>
+                <View style={styles.itemContent}>
                   <Text style={styles.itemLabel}>{item.label}</Text>
                   <Text style={styles.itemValue}>{item.value}</Text>
                 </View>
               </View>
-              <ChevronRight size={20} color={Colors.gray300} />
+              <View style={styles.itemRight}>
+                {item.showEdit && (
+                  <Edit size={16} color={Colors.primary} style={styles.editIcon} />
+                )}
+                <ChevronRight size={20} color={Colors.gray300} />
+              </View>
             </TouchableOpacity>
           ))}
         </View>
@@ -117,6 +200,15 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Name Edit Popup */}
+      <NameCollectionPopup
+        visible={showNameEditPopup}
+        onSave={handleEditName}
+        onCancel={() => setShowNameEditPopup(false)}
+        initialName={userName}
+        isEditing={true}
+      />
     </View>
   );
 }
@@ -195,6 +287,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flex: 1,
+  },
+  itemContent: {
+    flex: 1,
+  },
+  itemRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  editIcon: {
+    marginRight: 4,
   },
   itemIcon: {
     width: 40,

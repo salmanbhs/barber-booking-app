@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Modal, 
   View, 
@@ -13,15 +13,27 @@ import {
 } from 'react-native';
 import { User, Check } from 'lucide-react-native';
 import { Colors, Theme } from '@/constants/Colors';
+import { ApiService } from '@/utils/apiService';
+import { AuthStorage } from '@/utils/authStorage';
 
 interface NameCollectionPopupProps {
   visible: boolean;
   onSave: (name: string) => void;
+  onCancel?: () => void;
+  initialName?: string;
+  isEditing?: boolean;
 }
 
-export default function NameCollectionPopup({ visible, onSave }: NameCollectionPopupProps) {
-  const [name, setName] = useState('');
+export default function NameCollectionPopup({ visible, onSave, onCancel, initialName = '', isEditing = false }: NameCollectionPopupProps) {
+  const [name, setName] = useState(initialName);
   const [loading, setLoading] = useState(false);
+
+  // Update name when initialName changes (for editing mode)
+  useEffect(() => {
+    if (visible) {
+      setName(initialName);
+    }
+  }, [visible, initialName]);
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -36,9 +48,21 @@ export default function NameCollectionPopup({ visible, onSave }: NameCollectionP
 
     setLoading(true);
     try {
-      await onSave(name.trim());
-      setName('');
+      // Update profile via API
+      const result = await ApiService.updateCustomerProfile({
+        name: name.trim()
+      });
+
+      if (result.success) {
+        // Save name locally after successful API call
+        await AuthStorage.saveUserName(name.trim());
+        await onSave(name.trim());
+        setName('');
+      } else {
+        Alert.alert('Error', result.message || 'Failed to save name. Please try again.');
+      }
     } catch (error) {
+      console.error('Error saving name:', error);
       Alert.alert('Error', 'Failed to save name. Please try again.');
     } finally {
       setLoading(false);
@@ -69,9 +93,12 @@ export default function NameCollectionPopup({ visible, onSave }: NameCollectionP
                 {/* <View style={styles.iconContainer}>
                   <User size={32} color={Colors.primary} />
                 </View> */}
-                <Text style={styles.title}>Welcome!</Text>
+                <Text style={styles.title}>{isEditing ? 'Edit Your Name' : 'Welcome!'}</Text>
                 <Text style={styles.subtitle}>
-                  Please tell us your name to personalize your experience
+                  {isEditing 
+                    ? 'Update your name to keep your profile current'
+                    : 'Please tell us your name to personalize your experience'
+                  }
                 </Text>
               </View>
 
@@ -98,10 +125,21 @@ export default function NameCollectionPopup({ visible, onSave }: NameCollectionP
                 disabled={loading}
               >
                 <Text style={styles.saveButtonText}>
-                  {loading ? 'Saving...' : 'Continue'}
+                  {loading ? 'Saving...' : (isEditing ? 'Update Name' : 'Continue')}
                 </Text>
                 <Check size={20} color={Colors.white} />
               </TouchableOpacity>
+
+              {/* Cancel Button for Editing Mode */}
+              {isEditing && onCancel && (
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={onCancel}
+                  disabled={loading}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              )}
 
               {/* Note */}
               <Text style={styles.note}>
@@ -208,6 +246,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
     color: Colors.white,
+  },
+  cancelButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: Theme.colors.textSecondary,
   },
   note: {
     fontSize: 12,

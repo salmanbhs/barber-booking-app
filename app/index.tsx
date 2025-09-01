@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { Phone, ArrowRight } from 'lucide-react-native';
 import { Colors, Theme } from '@/constants/Colors';
 import AuthWrapper from '@/components/AuthWrapper';
+import { ApiService } from '@/utils/apiService';
 
 export default function LoginScreen() {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -18,19 +19,9 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
-      const response = await fetch('https://barber-api-three.vercel.app/api/auth/send-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phone: phoneNumber,
-        }),
-      });
+      const result = await ApiService.sendOTP(phoneNumber);
 
-      const data = await response.json();
-
-      if (response.ok) {
+      if (result.success) {
         // OTP sent successfully - navigate directly
         router.push({
           pathname: '/otp',
@@ -38,7 +29,7 @@ export default function LoginScreen() {
         });
       } else {
         // Handle API errors
-        Alert.alert('Error', data.message || 'Failed to send OTP. Please try again.');
+        Alert.alert('Error', result.message || 'Failed to send OTP. Please try again.');
       }
     } catch (error) {
       console.error('OTP Send Error:', error);
