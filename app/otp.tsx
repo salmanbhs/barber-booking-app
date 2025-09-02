@@ -58,8 +58,19 @@ export default function OTPScreen() {
                           result.data?.access_token ||
                           result.data?.authToken ||
                           result.data?.jwt;
+        
+        // Extract refresh token and expiration
+        const refreshToken = result.data?.session?.refresh_token || 
+                           result.data?.refreshToken || 
+                           result.data?.refresh_token;
+        
+        const tokenExpiresAt = result.data?.session?.expires_at || 
+                             result.data?.token_info?.expires_at ||
+                             result.data?.expires_at;
                           
         console.log('🔧 Extracted access token:', accessToken ? `Found (${accessToken.substring(0, 20)}...)` : 'Not found');
+        console.log('🔧 Extracted refresh token:', refreshToken ? `Found (${refreshToken.substring(0, 10)}...)` : 'Not found');
+        console.log('🔧 Token expires at:', tokenExpiresAt);
         
         if (!accessToken) {
           console.warn('⚠️ No access token found in OTP response. This might be a backend issue.');
@@ -74,7 +85,9 @@ export default function OTPScreen() {
           console.log('🔧 Saving auth data with token and user info');
           await AuthStorage.saveAuthData(phoneNumber, accessToken, {
             userId,
-            email
+            email,
+            refreshToken,
+            tokenExpiresAt
           });
         }
         

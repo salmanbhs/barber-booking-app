@@ -15,7 +15,17 @@ export const DebugUtils = {
     console.log('📋 Auth Data:', JSON.stringify(authData, null, 2));
     
     const hasToken = !!authData?.accessToken;
-    console.log(`🔑 Token Status: ${hasToken ? '✅ Present' : '❌ Missing'}`);
+    const hasRefreshToken = !!authData?.refreshToken;
+    const isExpired = await AuthStorage.isTokenExpired();
+    
+    console.log(`🔑 Access Token: ${hasToken ? '✅ Present' : '❌ Missing'}`);
+    console.log(`🔄 Refresh Token: ${hasRefreshToken ? '✅ Present' : '❌ Missing'}`);
+    console.log(`⏰ Token Status: ${isExpired ? '⚠️ Expired/Expiring' : '✅ Valid'}`);
+    
+    if (authData?.tokenExpiresAt) {
+      const expiresDate = new Date(authData.tokenExpiresAt * 1000);
+      console.log(`📅 Token Expires: ${expiresDate.toLocaleString()}`);
+    }
     
     if (hasToken) {
       const authTest = await ApiService.testAuthentication();
@@ -25,6 +35,8 @@ export const DebugUtils = {
     return {
       isAuthenticated: !!authData?.isAuthenticated,
       hasToken,
+      hasRefreshToken,
+      isExpired,
       phone: authData?.phone,
       name: authData?.name,
       userId: authData?.userId,
@@ -32,6 +44,7 @@ export const DebugUtils = {
       customerId: authData?.customerId,
       totalVisits: authData?.totalVisits,
       totalSpent: authData?.totalSpent,
+      tokenExpiresAt: authData?.tokenExpiresAt,
     };
   },
 
@@ -129,6 +142,21 @@ export const DebugUtils = {
         totalSpent: customer.total_spent,
       });
       console.log('✅ Profile data refreshed and saved locally');
+    }
+    
+    return result;
+  },
+
+  // Test token refresh functionality
+  async testTokenRefresh() {
+    console.log('🔄 Testing token refresh...');
+    
+    const result = await ApiService.manualRefreshToken();
+    console.log(`🔄 Token Refresh Result: ${result.success ? '✅ Success' : '❌ Failed'} - ${result.message}`);
+    
+    if (result.success) {
+      console.log('🔍 Checking new token status...');
+      await this.checkAuthStatus();
     }
     
     return result;

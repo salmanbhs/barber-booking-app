@@ -1,5 +1,7 @@
 # dependencies
 node_modules/
+npm-debug.log
+yarn-error.log
 
 # expo
 .expo/
@@ -14,6 +16,7 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+*.keystore
 
 # metro
 .metro-health-check*
@@ -23,13 +26,83 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 
-# macos
+# logs
+*.log
+logs/
+
+# runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# cache directories
+.cache/
+.parcel-cache/
+.next/
+
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 *.pem
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
 # local env files
 .env*.local
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 # typescript
 *.tsbuildinfo
+
+# temporary files
+*.tmp
+*.temp
+
+# build artifacts
+build/
+dist/
+out/
+
+# Android
+android/app/build/
+android/app/src/main/assets/index.android.bundle
+android/app/src/main/res/drawable-*/
+android/app/src/main/res/raw/
+android/.gradle/
+android/local.properties
+android/keystore.properties
+
+# iOS
+ios/build/
+ios/Pods/
+ios/*.xcworkspace
+ios/*.xcuserstate
+ios/DerivedData/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output

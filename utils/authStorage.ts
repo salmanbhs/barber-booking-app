@@ -8,6 +8,8 @@ export interface UserData {
   isAuthenticated: boolean;
   loginTimestamp: number;
   accessToken?: string;
+  refreshToken?: string;
+  tokenExpiresAt?: number;
   userId?: string;
   email?: string;
   customerId?: string;
@@ -20,6 +22,8 @@ export const AuthStorage = {
   async saveAuthData(phone: string, accessToken?: string, additionalData?: {
     userId?: string;
     email?: string;
+    refreshToken?: string;
+    tokenExpiresAt?: number;
   }): Promise<void> {
     try {
       const authData: UserData = {
@@ -27,6 +31,8 @@ export const AuthStorage = {
         isAuthenticated: true,
         loginTimestamp: Date.now(),
         accessToken,
+        refreshToken: additionalData?.refreshToken,
+        tokenExpiresAt: additionalData?.tokenExpiresAt,
         userId: additionalData?.userId,
         email: additionalData?.email,
       };
@@ -166,6 +172,52 @@ export const AuthStorage = {
     } catch (error) {
       console.error('Error saving customer profile:', error);
       throw error;
+    }
+  },
+
+  // Update tokens after refresh
+  async updateTokens(accessToken: string, refreshToken: string, expiresAt: number): Promise<void> {
+    try {
+      const authData = await this.getAuthData();
+      if (authData) {
+        const updatedData: UserData = {
+          ...authData,
+          accessToken,
+          refreshToken,
+          tokenExpiresAt: expiresAt,
+        };
+        await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(updatedData));
+      }
+    } catch (error) {
+      console.error('Error updating tokens:', error);
+      throw error;
+    }
+  },
+
+  // Check if token is expired or about to expire (within 5 minutes)
+  async isTokenExpired(): Promise<boolean> {
+    try {
+      const authData = await this.getAuthData();
+      if (!authData?.tokenExpiresAt) {
+        return false; // If no expiration time, assume valid for backward compatibility
+      }
+      const fiveMinutesInMs = 5 * 60 * 1000;
+      const now = Date.now() / 1000; // Convert to seconds
+      return authData.tokenExpiresAt <= (now + (fiveMinutesInMs / 1000));
+    } catch (error) {
+      console.error('Error checking token expiration:', error);
+      return true; // Assume expired on error for safety
+    }
+  },
+
+  // Get refresh token
+  async getRefreshToken(): Promise<string | null> {
+    try {
+      const authData = await this.getAuthData();
+      return authData?.refreshToken || null;
+    } catch (error) {
+      console.error('Error getting refresh token:', error);
+      return null;
     }
   },
 };

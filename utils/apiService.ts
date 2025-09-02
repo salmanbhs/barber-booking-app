@@ -22,8 +22,65 @@ export class ApiService {
       productionUrl: API_CONFIG.PRODUCTION_URL
     };
   }
+
+  // Refresh access token using refresh token
+  private static async refreshAccessToken(): Promise<boolean> {
+    try {
+      const refreshToken = await AuthStorage.getRefreshToken();
+      if (!refreshToken) {
+        logApiCall('No refresh token available');
+        return false;
+      }
+
+      const url = `${API_BASE_URL}/api/auth/refresh`;
+      logApiCall(`Refreshing token at: ${url}`);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+
+      if (!response.ok) {
+        logApiCall('Token refresh failed');
+        return false;
+      }
+
+      const data = await response.json();
+      logApiCall('Token refresh successful');
+
+      // Extract token info from the response
+      const { session, token_info } = data;
+      const newAccessToken = session?.access_token || token_info?.access_token;
+      const newRefreshToken = session?.refresh_token || token_info?.refresh_token;
+      const expiresAt = session?.expires_at || token_info?.expires_at;
+
+      if (newAccessToken && newRefreshToken && expiresAt) {
+        await AuthStorage.updateTokens(newAccessToken, newRefreshToken, expiresAt);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Error refreshing token:', error);
+      return false;
+    }
+  }
   private static async getAuthToken(): Promise<string | null> {
     try {
+      // Check if token is expired or about to expire
+      const isExpired = await AuthStorage.isTokenExpired();
+      if (isExpired) {
+        logApiCall('Token is expired or about to expire, attempting refresh');
+        const refreshSuccess = await this.refreshAccessToken();
+        if (!refreshSuccess) {
+          logApiCall('Token refresh failed');
+          return null;
+        }
+      }
+
       const authData = await AuthStorage.getAuthData();
       logApiCall(`Auth data retrieved: ${JSON.stringify(authData, null, 2)}`);
       const token = authData?.accessToken || null;
@@ -54,10 +111,35 @@ export class ApiService {
     const url = `${API_BASE_URL}${endpoint}`;
     logApiCall(`Making authenticated request to: ${url}`);
 
-    return fetch(url, {
+    const response = await fetch(url, {
       ...options,
       headers,
     });
+
+    // If we get a 401 (Unauthorized), try to refresh the token once
+    if (response.status === 401) {
+      logApiCall('Received 401, attempting token refresh');
+      const refreshSuccess = await this.refreshAccessToken();
+      
+      if (refreshSuccess) {
+        // Retry the request with the new token
+        const newToken = await AuthStorage.getAuthData();
+        if (newToken?.accessToken) {
+          const newHeaders = {
+            ...headers,
+            'Authorization': `Bearer ${newToken.accessToken}`,
+          };
+          
+          logApiCall('Retrying request with refreshed token');
+          return fetch(url, {
+            ...options,
+            headers: newHeaders,
+          });
+        }
+      }
+    }
+
+    return response;
   }
 
   static async updateCustomerProfile(data: {
@@ -228,6 +310,23 @@ export class ApiService {
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Authentication test failed',
+      };
+    }
+  }
+
+  // Manual token refresh function that can be called from UI
+  static async manualRefreshToken(): Promise<ApiResponse> {
+    try {
+      const success = await this.refreshAccessToken();
+      return {
+        success,
+        message: success ? 'Token refreshed successfully' : 'Failed to refresh token',
+      };
+    } catch (error) {
+      console.error('Manual token refresh error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Token refresh failed',
       };
     }
   }

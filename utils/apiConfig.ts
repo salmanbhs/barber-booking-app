@@ -13,7 +13,7 @@
 // Change USE_LOCAL to switch between development and production
 export const API_CONFIG = {
   // Set to true for local development, false for production
-  USE_LOCAL: true,
+  USE_LOCAL: false,
   
   // Local development server
   LOCAL_URL: 'http://localhost:3000',
