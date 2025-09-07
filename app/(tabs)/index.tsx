@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Plus, Calendar, Clock, User, MoveVertical as MoreVertical } from 'lucide-react-native';
 import { BookingCard } from '@/components/BookingCard';
 import NameCollectionPopup from '@/components/NameCollectionPopup';
@@ -7,8 +7,8 @@ import { mockBookings } from '@/data/mockData';
 import { Colors, Theme } from '@/constants/Colors';
 import { AuthStorage } from '@/utils/authStorage';
 import { ApiService } from '@/utils/apiService';
-import { useState, useEffect } from 'react';
-import '@/utils/debugUtils'; // Import debug utils for console access
+import { AppEvents, EVENTS } from '@/utils/appEvents';
+import { useState, useEffect, useCallback } from 'react';
 
 export default function DashboardScreen() {
   const [userName, setUserName] = useState<string | null>(null);
@@ -20,17 +20,67 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     checkUserName();
+    
+    // Listen for name updates from other screens
+    const handleNameUpdate = (newName: string) => {
+      console.log(`📡 Dashboard: Received name update event: "${newName}"`);
+      setUserName(newName);
+    };
+    
+    // Listen for auth state changes (like logout)
+    const handleAuthStateChange = (authState: any) => {
+      if (authState.isLoggedOut) {
+        console.log('📡 Dashboard: Received logout event, resetting state');
+        setUserName(null);
+        setShowNamePopup(false);
+      }
+    };
+    
+    AppEvents.on(EVENTS.USER_NAME_UPDATED, handleNameUpdate);
+    AppEvents.on(EVENTS.AUTH_STATE_CHANGED, handleAuthStateChange);
+    
+    // Cleanup event listeners
+    return () => {
+      AppEvents.off(EVENTS.USER_NAME_UPDATED, handleNameUpdate);
+      AppEvents.off(EVENTS.AUTH_STATE_CHANGED, handleAuthStateChange);
+    };
   }, []);
 
-  const checkUserName = async () => {
+  // Refresh user name when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      refreshUserName();
+    }, [])
+  );
+
+  const refreshUserName = async () => {
     try {
+      // Always check local storage first for immediate update
+      const localName = await AuthStorage.getUserName();
+      if (localName && localName !== userName) {
+        console.log(`🔄 Dashboard: Updating name from "${userName}" to "${localName}"`);
+        setUserName(localName);
+      }
+      
+      // Note: Don't show popup here - this is just for refreshing existing state
+      // The popup should only be shown during initial checkUserName() flow
+    } catch (error) {
+      console.error('Error refreshing user name:', error);
+    }
+  };
+
+  const checkUserName = async () => {
+    setLoading(true);
+    try {
+      console.log('🔍 Dashboard: Starting user name check...');
+      
       // First, try to fetch the profile from the API
       const profileResult = await ApiService.getCustomerProfile();
       
       if (profileResult.success && profileResult.data?.data?.customer?.name) {
         const customer = profileResult.data.data.customer;
         const apiName = customer.name;
-        console.log('📋 Found name in API profile:', apiName);
+        console.log('✅ Dashboard: Found name in API profile:', apiName);
         
         // Save the complete customer profile locally
         await AuthStorage.saveCustomerProfile({
@@ -42,21 +92,23 @@ export default function DashboardScreen() {
         });
         
         setUserName(apiName);
+        console.log('✅ Dashboard: Name set from API, no popup needed');
       } else {
-        console.log('📋 No name found in API profile, checking local storage');
+        console.log('⚠️ Dashboard: No name found in API profile, checking local storage');
         
         // Fallback to local storage
         const hasName = await AuthStorage.hasUserName();
         if (hasName) {
           const localName = await AuthStorage.getUserName();
           setUserName(localName);
+          console.log('✅ Dashboard: Found name in local storage:', localName);
         } else {
-          console.log('📋 No name found locally, showing name popup');
+          console.log('❌ Dashboard: No name found anywhere, showing popup');
           setShowNamePopup(true);
         }
       }
     } catch (error) {
-      console.error('Error checking user name:', error);
+      console.error('❌ Dashboard: Error checking user name from API:', error);
       
       // Fallback to local storage on API error
       try {
@@ -64,11 +116,13 @@ export default function DashboardScreen() {
         if (hasName) {
           const localName = await AuthStorage.getUserName();
           setUserName(localName);
+          console.log('✅ Dashboard: Found name in local storage (fallback):', localName);
         } else {
+          console.log('❌ Dashboard: No local name found, showing popup (fallback)');
           setShowNamePopup(true);
         }
       } catch (localError) {
-        console.error('Error checking local name:', localError);
+        console.error('❌ Dashboard: Error checking local name:', localError);
         setShowNamePopup(true);
       }
     } finally {
@@ -76,15 +130,33 @@ export default function DashboardScreen() {
     }
   };
 
-  const handleSaveName = async (name: string) => {
+  const handleSaveName = async (name: string, success: boolean, message?: string, backupName?: string) => {
     try {
-      // The API call is now handled in the NameCollectionPopup component
-      // This function will only be called after successful API update
-      setUserName(name);
-      setShowNamePopup(false);
+      if (success && !message) {
+        // Initial optimistic update - just update UI
+        setUserName(name);
+        setShowNamePopup(false);
+        
+        // Emit event for other screens
+        AppEvents.emit(EVENTS.USER_NAME_UPDATED, name);
+      } else if (success && message) {
+        // API call succeeded - could show notification here if needed
+        console.log('Name update successful:', message);
+        
+        // Emit final success event
+        AppEvents.emit(EVENTS.USER_NAME_UPDATED, name);
+      } else {
+        // API call failed - revert to backup name
+        if (backupName) {
+          setUserName(backupName);
+          
+          // Emit revert event
+          AppEvents.emit(EVENTS.USER_NAME_UPDATED, backupName);
+        }
+        console.error('Name save failed:', message);
+      }
     } catch (error) {
-      console.error('Error saving user name:', error);
-      throw error;
+      console.error('Error handling name save result:', error);
     }
   };
 

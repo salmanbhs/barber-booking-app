@@ -81,6 +81,24 @@ export const AuthStorage = {
     }
   },
 
+  // Complete logout - clear ALL local storage data
+  async completeLogout(): Promise<void> {
+    try {
+      console.log('🧹 Starting complete logout - clearing all local storage...');
+      
+      // Option 1: Clear only our app's data (recommended)
+      await AsyncStorage.removeItem(AUTH_KEY);
+      
+      // Option 2: Clear ALL AsyncStorage (uncomment if needed)
+      // await AsyncStorage.clear();
+      
+      console.log('✅ All local storage cleared successfully');
+    } catch (error) {
+      console.error('❌ Error during complete logout:', error);
+      throw error;
+    }
+  },
+
   // Get user phone number
   async getUserPhone(): Promise<string | null> {
     try {

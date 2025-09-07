@@ -160,6 +160,79 @@ export const DebugUtils = {
     }
     
     return result;
+  },
+
+  // Run comprehensive authentication flow test
+  async runAuthFlowTest() {
+    console.log('🧪 Running comprehensive authentication flow test...');
+    return await testAuthFlow();
+  },
+
+  // Clear auth data and test authentication failure handling
+  async testAuthFailureFlow() {
+    console.log('🧹 Testing authentication failure flow...');
+    return await clearAuthAndTest();
+  },
+
+  // Test manual token refresh
+  async testManualTokenRefresh() {
+    console.log('🔄 Testing manual token refresh...');
+    return await testTokenRefresh();
+  },
+
+  // Force logout (for testing)
+  async forceLogout() {
+    console.log('🚪 Forcing logout...');
+    await ApiService.logout();
+    console.log('✅ Logout completed, should redirect to OTP page');
+  },
+
+  // Test name update flow
+  async testNameUpdateFlow() {
+    console.log('📝 Testing name update flow...');
+    return await testNameUpdateFlow();
+  },
+
+  // Test cross-tab name synchronization
+  testCrossTabSync() {
+    console.log('🔄 Testing cross-tab synchronization...');
+    return testCrossTabSync();
+  },
+
+  // Test name storage and retrieval
+  async testNameStorage() {
+    console.log('💾 Testing name storage...');
+    return await testNameStorage();
+  },
+
+  // Test name popup logic
+  async testNamePopupLogic() {
+    console.log('🔍 Testing name popup logic...');
+    return await testNamePopupLogic();
+  },
+
+  // Test complete logout functionality
+  async testCompleteLogout() {
+    console.log('🚪 Testing complete logout...');
+    return await testCompleteLogout();
+  },
+
+  // Test logout with sample data
+  async testLogoutWithData() {
+    console.log('🗑️ Testing logout with sample data...');
+    return await testLogoutWithData();
+  },
+
+  // Test barber API integration
+  async testBarberApi() {
+    console.log('💈 Testing barber API...');
+    return await testBarberApi();
+  },
+
+  // Test services API integration
+  async testServicesApi() {
+    console.log('🧪 Testing Services API Integration...');
+    return await testServicesApi();
   }
 };
 

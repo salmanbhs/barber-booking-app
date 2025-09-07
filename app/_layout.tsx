@@ -5,6 +5,7 @@ import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
+import { AppInitializer } from '@/utils/appInitializer';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -18,9 +19,15 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
+    const initializeApp = async () => {
+      if (fontsLoaded || fontError) {
+        // Initialize app data preloading
+        await AppInitializer.initialize();
+        SplashScreen.hideAsync();
+      }
+    };
+
+    initializeApp();
   }, [fontsLoaded, fontError]);
 
   if (!fontsLoaded && !fontError) {

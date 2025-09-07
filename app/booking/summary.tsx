@@ -1,17 +1,44 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Calendar, Clock, User, Scissors, CreditCard } from 'lucide-react-native';
-import { mockBarbers, mockServices } from '@/data/mockData';
+import { BookingStorage } from '@/utils/bookingStorage';
+import { Barber, Service } from '@/types';
 import { Colors } from '@/constants/Colors';
 
 export default function SummaryScreen() {
-  const { barberId, services, date, time } = useLocalSearchParams();
-  const serviceIds = (services as string).split(',');
+  const { date, time } = useLocalSearchParams();
+  const [barber, setBarber] = useState<Barber | null>(null);
+  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadBookingData();
+  }, []);
+
+  const loadBookingData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Get booking data from local storage
+      const bookingData = await BookingStorage.getBookingData();
+      
+      setBarber(bookingData.barber);
+      setSelectedServices(bookingData.selectedServices);
+      
+      // Also save the date and time to local storage for consistency
+      if (date && time) {
+        await BookingStorage.saveDateAndTime(date as string, time as string);
+      }
+
+    } catch (error) {
+      console.error('Error loading booking data from storage:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
-  const barber = mockBarbers.find(b => b.id === barberId);
-  const selectedServices = mockServices.filter(s => serviceIds.includes(s.id));
-  
-  const totalDuration = selectedServices.reduce((total, service) => total + service.duration, 0);
+  const totalDuration = selectedServices.reduce((total, service) => total + service.duration_minutes, 0);
   const totalPrice = selectedServices.reduce((total, service) => total + service.price, 0);
 
   const handleConfirmBooking = () => {
@@ -26,6 +53,24 @@ export default function SummaryScreen() {
       day: 'numeric'
     });
   };
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <ArrowLeft size={24} color="#1E293B" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Booking Summary</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading booking details...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -45,7 +90,7 @@ export default function SummaryScreen() {
             </View>
             <View style={styles.itemContent}>
               <Text style={styles.itemLabel}>Barber</Text>
-              <Text style={styles.itemValue}>{barber?.name}</Text>
+              <Text style={styles.itemValue}>{barber?.user?.name}</Text>
             </View>
           </View>
 
@@ -196,6 +241,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   confirmText: {
+    fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+    color: 'white',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: '#64748B',
+  },
+  errorText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: '#EF4444',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryText: {
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
     color: 'white',

@@ -3,16 +3,24 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator }
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, ArrowRight } from 'lucide-react-native';
 import { ServiceCard } from '@/components/ServiceCard';
-import { ApiService } from '@/utils/apiService';
+import { DataCache } from '@/utils/dataCache';
+import { BookingStorage } from '@/utils/bookingStorage';
 import { Service } from '@/types';
 import { Colors } from '@/constants/Colors';
 
-export default function SelectServicesScreen() {
+export default function ServicesScreen() {
   const { barberId } = useLocalSearchParams();
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  console.log('🔍 Services Screen State:', { 
+    isLoading, 
+    error, 
+    servicesCount: services.length, 
+    barberId 
+  });
 
   useEffect(() => {
     loadServices();
@@ -20,18 +28,22 @@ export default function SelectServicesScreen() {
 
   const loadServices = async () => {
     try {
+      console.log('🔄 Loading services...');
       setIsLoading(true);
       setError(null);
       
-      const response = await ApiService.getServices();
+      const servicesData = await DataCache.getServices();
+      console.log('📋 Services from cache:', servicesData);
       
-      if (response.success && response.data) {
-        setServices(response.data.services);
+      if (servicesData && servicesData.services && Array.isArray(servicesData.services)) {
+        console.log('✅ Services loaded:', servicesData.services.length, 'services');
+        setServices(servicesData.services);
       } else {
-        setError(response.message || 'Failed to load services');
+        console.error('❌ No services found in cache');
+        setError('No services available');
       }
     } catch (error) {
-      console.error('Error loading services:', error);
+      console.error('💥 Error loading services:', error);
       setError('Unable to load services. Please try again.');
     } finally {
       setIsLoading(false);
@@ -46,8 +58,15 @@ export default function SelectServicesScreen() {
     );
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (selectedServices.length === 0) return;
+    
+    // Get the selected service objects and save them
+    const selectedServiceObjects = services.filter(service => 
+      selectedServices.includes(service.id)
+    );
+    
+    await BookingStorage.saveServices(selectedServiceObjects);
     
     router.push({
       pathname: '/booking/select-time',
@@ -58,13 +77,17 @@ export default function SelectServicesScreen() {
     });
   };
 
-  const totalDuration = services
-    .filter(service => selectedServices.includes(service.id))
-    .reduce((total, service) => total + service.duration_minutes, 0);
+  const totalDuration = services && services.length > 0 
+    ? services
+        .filter(service => selectedServices.includes(service.id))
+        .reduce((total, service) => total + service.duration_minutes, 0)
+    : 0;
 
-  const totalPrice = services
-    .filter(service => selectedServices.includes(service.id))
-    .reduce((total, service) => total + service.price, 0);
+  const totalPrice = services && services.length > 0
+    ? services
+        .filter(service => selectedServices.includes(service.id))
+        .reduce((total, service) => total + service.price, 0)
+    : 0;
 
   if (isLoading) {
     return (
@@ -104,6 +127,26 @@ export default function SelectServicesScreen() {
     );
   }
 
+  if (!isLoading && services.length === 0) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <ArrowLeft size={24} color="#1E293B" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Select Services</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.centerContainer}>
+          <Text style={styles.errorText}>No services available</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadServices}>
+            <Text style={styles.retryText}>Reload</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -115,7 +158,7 @@ export default function SelectServicesScreen() {
       </View>
 
       <FlatList
-        data={services}
+        data={services || []}
         renderItem={({ item }) => (
           <ServiceCard
             service={item}

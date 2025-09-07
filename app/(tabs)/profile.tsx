@@ -5,6 +5,8 @@ import { Colors, Theme } from '@/constants/Colors';
 import { AuthStorage } from '@/utils/authStorage';
 import { ApiService } from '@/utils/apiService';
 import NameCollectionPopup from '@/components/NameCollectionPopup';
+import Notification from '@/components/Notification';
+import { AppEvents, EVENTS } from '@/utils/appEvents';
 import { useState, useEffect } from 'react';
 
 export default function ProfileScreen() {
@@ -12,6 +14,11 @@ export default function ProfileScreen() {
   const [userPhone, setUserPhone] = useState<string>('');
   const [showNameEditPopup, setShowNameEditPopup] = useState(false);
   const [customerData, setCustomerData] = useState<any>(null);
+  const [notification, setNotification] = useState<{
+    visible: boolean;
+    message: string;
+    type: 'success' | 'error';
+  }>({ visible: false, message: '', type: 'success' });
 
   useEffect(() => {
     loadUserData();
@@ -79,14 +86,10 @@ export default function ProfileScreen() {
     },
   ];
 
-  const handleEditName = async (newName: string) => {
+  const handleEditName = async (newName: string, success: boolean, message?: string, backupName?: string) => {
     try {
-      // Update the name via API
-      const result = await ApiService.updateCustomerProfile({ name: newName });
-      
-      if (result.success) {
-        // Save locally and update UI
-        await AuthStorage.saveUserName(newName);
+      if (success && !message) {
+        // Initial optimistic update - just close popup and update UI
         setUserName(newName);
         setShowNameEditPopup(false);
         
@@ -95,20 +98,49 @@ export default function ProfileScreen() {
           setCustomerData({ ...customerData, name: newName });
         }
         
-        Alert.alert('Success', 'Your name has been updated successfully!');
+        // Emit event to notify other screens
+        AppEvents.emit(EVENTS.USER_NAME_UPDATED, newName);
+      } else if (success && message) {
+        // API call succeeded - show success notification
+        showNotification(message, 'success');
+        
+        // Emit final success event
+        AppEvents.emit(EVENTS.USER_NAME_UPDATED, newName);
       } else {
-        Alert.alert('Error', result.message || 'Failed to update name. Please try again.');
+        // API call failed - revert to backup name and show error
+        if (backupName) {
+          await AuthStorage.saveUserName(backupName);
+          setUserName(backupName);
+          
+          // Update customer data if available
+          if (customerData) {
+            setCustomerData({ ...customerData, name: backupName });
+          }
+          
+          // Emit revert event
+          AppEvents.emit(EVENTS.USER_NAME_UPDATED, backupName);
+        }
+        
+        showNotification(message || 'Failed to update name', 'error');
       }
     } catch (error) {
-      console.error('Error updating name:', error);
-      Alert.alert('Error', 'Failed to update name. Please try again.');
+      console.error('Error handling name update result:', error);
+      showNotification('An unexpected error occurred', 'error');
     }
+  };
+
+  const showNotification = (message: string, type: 'success' | 'error') => {
+    setNotification({ visible: true, message, type });
+  };
+
+  const hideNotification = () => {
+    setNotification({ visible: false, message: '', type: 'success' });
   };
 
   const handleLogout = async () => {
     Alert.alert(
       'Sign Out',
-      'Are you sure you want to sign out?',
+      'Are you sure you want to sign out? This will clear all your local data.',
       [
         {
           text: 'Cancel',
@@ -119,14 +151,26 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Clear authentication data first
-              await AuthStorage.clearAuthData();
+              console.log('🚪 Starting logout process...');
               
-              // Use router.push to navigate to login
-              router.push('/');
+              // Clear ALL local storage data
+              await AuthStorage.completeLogout();
+              
+              // Emit logout event to notify other screens
+              AppEvents.emit(EVENTS.AUTH_STATE_CHANGED, { isLoggedOut: true });
+              
+              // Reset local component state
+              setUserName('Guest');
+              setUserPhone('');
+              setCustomerData(null);
+              
+              // Navigate to login/index page
+              router.replace('/');
+              
+              console.log('✅ Logout completed successfully');
             } catch (error) {
-              console.error('Error signing out:', error);
-              Alert.alert('Error', 'Failed to sign out. Please try again.');
+              console.error('❌ Error signing out:', error);
+              Alert.alert('Error', 'Failed to sign out completely. Please try again.');
             }
           },
         },
@@ -208,6 +252,14 @@ export default function ProfileScreen() {
         onCancel={() => setShowNameEditPopup(false)}
         initialName={userName}
         isEditing={true}
+      />
+
+      {/* Notification */}
+      <Notification
+        visible={notification.visible}
+        message={notification.message}
+        type={notification.type}
+        onHide={hideNotification}
       />
     </View>
   );

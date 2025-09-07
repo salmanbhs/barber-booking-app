@@ -1,19 +1,27 @@
 export interface Barber {
   id: string;
-  name: string;
-  photo: string;
-  rating: number;
+  user: {
+    name: string;
+    email: string;
+  };
   specialties: string[];
-  distance: string;
-  experience: number;
+  experience_years: number;
+  rating: number;
+  bio: string;
+  profile_image_url: string | null;
+  hire_date: string;
 }
 
 export interface Service {
   id: string;
   name: string;
   description: string;
-  duration: number;
   price: number;
+  duration_minutes: number;
+  category: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Booking {

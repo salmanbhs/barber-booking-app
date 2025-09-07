@@ -28,7 +28,7 @@ export function ServiceCard({ service, isSelected, onToggle }: ServiceCardProps)
         <View style={styles.footer}>
           <View style={styles.duration}>
             <Clock size={14} color={Colors.gray500} />
-            <Text style={styles.durationText}>{service.duration} min</Text>
+            <Text style={styles.durationText}>{service.duration_minutes} min</Text>
           </View>
           <Text style={styles.price}>${service.price}</Text>
         </View>

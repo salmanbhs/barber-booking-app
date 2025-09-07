@@ -18,7 +18,7 @@ import { AuthStorage } from '@/utils/authStorage';
 
 interface NameCollectionPopupProps {
   visible: boolean;
-  onSave: (name: string) => void;
+  onSave: (name: string, success: boolean, message?: string, backupName?: string) => void;
   onCancel?: () => void;
   initialName?: string;
   isEditing?: boolean;
@@ -47,23 +47,36 @@ export default function NameCollectionPopup({ visible, onSave, onCancel, initial
     }
 
     setLoading(true);
+    
     try {
-      // Update profile via API
+      // Get current name as backup
+      const currentName = await AuthStorage.getUserName();
+      
+      // Optimistically update local storage and UI
+      await AuthStorage.saveUserName(name.trim());
+      
+      // Close popup immediately and update UI
+      await onSave(name.trim(), true, '', currentName || '');
+      setName('');
+      
+      // Make API call in background
       const result = await ApiService.updateCustomerProfile({
         name: name.trim()
       });
 
-      if (result.success) {
-        // Save name locally after successful API call
-        await AuthStorage.saveUserName(name.trim());
-        await onSave(name.trim());
-        setName('');
+      if (!result.success) {
+        // API failed - notify parent to revert and show error
+        await onSave(currentName || '', false, result.message || 'Failed to save name', currentName || '');
       } else {
-        Alert.alert('Error', result.message || 'Failed to save name. Please try again.');
+        // API succeeded - notify parent of success
+        await onSave(name.trim(), true, 'Name updated successfully', currentName || '');
       }
     } catch (error) {
       console.error('Error saving name:', error);
-      Alert.alert('Error', 'Failed to save name. Please try again.');
+      
+      // Get the backup name and revert
+      const currentName = await AuthStorage.getUserName();
+      await onSave(currentName || '', false, 'Failed to save name', currentName || '');
     } finally {
       setLoading(false);
     }

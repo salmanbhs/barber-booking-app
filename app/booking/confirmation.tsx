@@ -1,9 +1,25 @@
+import { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { CircleCheck as CheckCircle, Calendar, Chrome as Home } from 'lucide-react-native';
+import { BookingStorage } from '@/utils/bookingStorage';
 import { Colors, Theme } from '@/constants/Colors';
 
 export default function ConfirmationScreen() {
+  useEffect(() => {
+    // Clear booking data after successful booking
+    const clearBookingData = async () => {
+      try {
+        await BookingStorage.clearBookingData();
+        console.log('Booking data cleared after successful booking');
+      } catch (error) {
+        console.error('Error clearing booking data:', error);
+      }
+    };
+    
+    clearBookingData();
+  }, []);
+
   const handleBackToDashboard = () => {
     router.replace('/(tabs)');
   };
