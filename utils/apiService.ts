@@ -73,13 +73,13 @@ export class ApiService {
   // Handle logout when authentication fails
   private static async handleAuthenticationFailure(): Promise<void> {
     try {
-      logApiCall('🔧 API: Authentication failed, clearing data and redirecting to OTP');
+      logApiCall('🔧 API: Authentication failed, clearing data and redirecting to login');
       
       // Clear all local storage data
       await AuthStorage.completeLogout();
       
-      // Navigate to OTP page
-      router.replace('/otp');
+      // Navigate to main page (phone entry)
+      router.replace('/');
     } catch (error) {
       console.error('Error handling authentication failure:', error);
     }
@@ -391,10 +391,10 @@ export class ApiService {
     }
   }
 
-  // Force logout and redirect to OTP
+  // Force logout and redirect to login
   static async logout(): Promise<void> {
     await AuthStorage.completeLogout();
-    router.replace('/otp');
+    router.replace('/');
   }
 
   // Get list of all barbers
