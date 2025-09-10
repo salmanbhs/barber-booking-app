@@ -12,28 +12,37 @@ export function BarberCard({ barber, onSelect }: BarberCardProps) {
   return (
     <TouchableOpacity style={styles.container} onPress={onSelect}>
       <Image 
-        source={{ 
-          uri: barber.profile_image_url || 'https://via.placeholder.com/80x80/e0e0e0/999999?text=No+Image' 
-        }} 
-        style={styles.photo} 
+        source={{ uri: barber.photo }} 
+        style={styles.photo}
+        defaultSource={{ uri: 'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=400' }}
       />
       
       <View style={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.name}>{barber.user.name}</Text>
+          <Text style={styles.name}>{barber.name}</Text>
           <View style={styles.rating}>
             <Star size={16} color={Colors.warning} fill={Colors.warning} />
-            <Text style={styles.ratingText}>{barber.rating}</Text>
+            <Text style={styles.ratingText}>{barber.rating.toFixed(1)}</Text>
           </View>
         </View>
         
-        <Text style={styles.specialties}>{barber.specialties.join(', ')}</Text>
-        
-        <Text style={styles.bio} numberOfLines={2}>{barber.bio}</Text>
+        <Text style={styles.specialties}>
+          {barber.specialties && barber.specialties.length > 0 
+            ? barber.specialties.join(', ') 
+            : 'General Services'
+          }
+        </Text>
         
         <View style={styles.footer}>
-          <Text style={styles.experience}>{barber.experience_years} years exp.</Text>
-          <Text style={styles.email}>{barber.user.email}</Text>
+          {barber.distance && (
+            <View style={styles.location}>
+              <MapPin size={14} color={Colors.gray500} />
+              <Text style={styles.locationText}>{barber.distance}</Text>
+            </View>
+          )}
+          <Text style={styles.experience}>
+            {barber.experience} year{barber.experience !== 1 ? 's' : ''} exp.
+          </Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -87,26 +96,24 @@ const styles = StyleSheet.create({
     color: Theme.colors.textSecondary,
     marginBottom: 8,
   },
-  bio: {
-    fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    color: Colors.gray600,
-    marginBottom: 8,
-    lineHeight: 16,
-  },
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  experience: {
+  location: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  locationText: {
     fontSize: 12,
     fontFamily: 'Inter-Regular',
     color: Theme.colors.textSecondary,
   },
-  email: {
+  experience: {
     fontSize: 12,
     fontFamily: 'Inter-Regular',
-    color: Colors.gray500,
+    color: Theme.colors.textSecondary,
   },
 });

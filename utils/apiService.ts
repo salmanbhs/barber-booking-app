@@ -1,6 +1,5 @@
 import { AuthStorage } from './authStorage';
 import { getApiBaseUrl, logApiCall, API_CONFIG } from './apiConfig';
-import { router } from 'expo-router';
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -29,7 +28,7 @@ export class ApiService {
     try {
       const refreshToken = await AuthStorage.getRefreshToken();
       if (!refreshToken) {
-        logApiCall('🔧 API: No refresh token available');
+        logApiCall('No refresh token available');
         return false;
       }
 
@@ -69,21 +68,6 @@ export class ApiService {
       return false;
     }
   }
-
-  // Handle logout when authentication fails
-  private static async handleAuthenticationFailure(): Promise<void> {
-    try {
-      logApiCall('🔧 API: Authentication failed, clearing data and redirecting to login');
-      
-      // Clear all local storage data
-      await AuthStorage.completeLogout();
-      
-      // Navigate to main page (phone entry)
-      router.replace('/');
-    } catch (error) {
-      console.error('Error handling authentication failure:', error);
-    }
-  }
   private static async getAuthToken(): Promise<string | null> {
     try {
       // Check if token is expired or about to expire
@@ -92,9 +76,7 @@ export class ApiService {
         logApiCall('Token is expired or about to expire, attempting refresh');
         const refreshSuccess = await this.refreshAccessToken();
         if (!refreshSuccess) {
-          logApiCall('🔧 API: Token refresh failed');
-          // Don't redirect here as this might be called during app initialization
-          // Let the actual API call handle the 401 and redirect
+          logApiCall('Token refresh failed');
           return null;
         }
       }
@@ -136,7 +118,7 @@ export class ApiService {
 
     // If we get a 401 (Unauthorized), try to refresh the token once
     if (response.status === 401) {
-      logApiCall('🔧 API: Received 401, attempting token refresh');
+      logApiCall('Received 401, attempting token refresh');
       const refreshSuccess = await this.refreshAccessToken();
       
       if (refreshSuccess) {
@@ -154,10 +136,6 @@ export class ApiService {
             headers: newHeaders,
           });
         }
-      } else {
-        // Token refresh failed, handle logout
-        await this.handleAuthenticationFailure();
-        throw new Error('Authentication failed. Please log in again.');
       }
     }
 
@@ -172,8 +150,6 @@ export class ApiService {
       const token = await this.getAuthToken();
       
       if (!token) {
-        // Handle case where no token is available
-        await this.handleAuthenticationFailure();
         return {
           success: false,
           message: 'Authentication required. Please log in again.',
@@ -201,15 +177,6 @@ export class ApiService {
       }
     } catch (error) {
       console.error('Update profile error:', error);
-      
-      // Check if it's an authentication error
-      if (error instanceof Error && error.message.includes('Authentication failed')) {
-        return {
-          success: false,
-          message: 'Session expired. Please log in again.',
-        };
-      }
-      
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Network error occurred',
@@ -222,8 +189,6 @@ export class ApiService {
       const token = await this.getAuthToken();
       
       if (!token) {
-        // Handle case where no token is available
-        await this.handleAuthenticationFailure();
         return {
           success: false,
           message: 'Authentication required. Please log in again.',
@@ -250,15 +215,6 @@ export class ApiService {
       }
     } catch (error) {
       console.error('Get profile error:', error);
-      
-      // Check if it's an authentication error
-      if (error instanceof Error && error.message.includes('Authentication failed')) {
-        return {
-          success: false,
-          message: 'Session expired. Please log in again.',
-        };
-      }
-      
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Network error occurred',
@@ -375,29 +331,7 @@ export class ApiService {
     }
   }
 
-  // Check authentication status and redirect if needed
-  static async checkAuthenticationAndRedirect(): Promise<boolean> {
-    try {
-      const token = await this.getAuthToken();
-      if (!token) {
-        await this.handleAuthenticationFailure();
-        return false;
-      }
-      return true;
-    } catch (error) {
-      console.error('Authentication check error:', error);
-      await this.handleAuthenticationFailure();
-      return false;
-    }
-  }
-
-  // Force logout and redirect to login
-  static async logout(): Promise<void> {
-    await AuthStorage.completeLogout();
-    router.replace('/');
-  }
-
-  // Get list of all barbers
+  // Fetch all barbers from the API
   static async getBarbers(): Promise<ApiResponse> {
     try {
       const url = `${API_BASE_URL}/api/barbers`;
@@ -410,59 +344,43 @@ export class ApiService {
         },
       });
 
-      const data = await response.json();
+      const responseData = await response.json();
+      logApiCall(`Barbers response: ${response.ok ? 'Success' : 'Failed'}`);
 
-      if (response.ok) {
+      if (response.ok && responseData.data && responseData.data.barbers) {
+        // Transform API response to match our Barber interface
+        const transformedBarbers = responseData.data.barbers.map((apiBarber: any) => ({
+          id: apiBarber.id,
+          name: apiBarber.user?.name || 'Unknown Barber',
+          email: apiBarber.user?.email,
+          photo: apiBarber.profile_image_url || 'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=400',
+          rating: apiBarber.rating || 0,
+          specialties: apiBarber.specialties || [],
+          distance: '1.0 km away', // Default distance since API doesn't provide this
+          experience: apiBarber.experience_years || 0,
+          bio: apiBarber.bio,
+          hire_date: apiBarber.hire_date
+        }));
+
+        logApiCall(`Transformed ${transformedBarbers.length} barbers`);
+
         return {
           success: true,
-          data: data,
+          data: transformedBarbers,
+          message: responseData.message || 'Barbers fetched successfully',
         };
       } else {
         return {
           success: false,
-          message: data.message || 'Failed to fetch barbers',
+          data: [],
+          message: responseData.message || 'No barbers data received',
         };
       }
     } catch (error) {
       console.error('Get barbers error:', error);
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Network error occurred',
-      };
-    }
-  }
-
-  // Get list of all services
-  static async getServices(): Promise<ApiResponse> {
-    try {
-      const url = `${API_BASE_URL}/api/services`;
-      logApiCall(`Fetching services from: ${url}`);
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        return {
-          success: true,
-          data: data,
-        };
-      } else {
-        return {
-          success: false,
-          message: data.message || 'Failed to fetch services',
-        };
-      }
-    } catch (error) {
-      console.error('Get services error:', error);
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : 'Network error occurred',
+        message: error instanceof Error ? error.message : 'Network error occurred while fetching barbers',
       };
     }
   }
