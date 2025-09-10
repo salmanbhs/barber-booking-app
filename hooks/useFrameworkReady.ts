@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { BarberInitService } from '@/utils/barberInitService';
+import { ServiceInitService } from '@/utils/serviceInitService';
 
 declare global {
   interface Window {
@@ -12,24 +13,38 @@ export function useFrameworkReady() {
     // Call the original framework ready callback
     window.frameworkReady?.();
     
-    // Initialize barbers when framework is ready and stable
-    const initBarbers = async () => {
+    // Initialize barbers and services when framework is ready and stable
+    const initializeAppData = async () => {
       try {
-        console.log('🎯 Framework ready, initializing barbers...');
-        const result = await BarberInitService.initializeBarbers();
+        console.log('🎯 Framework ready, initializing app data...');
+        
+        // Initialize barbers and services in parallel
+        const [barberResult, serviceResult] = await Promise.all([
+          BarberInitService.initializeBarbers(),
+          ServiceInitService.initializeServices()
+        ]);
+        
         console.log('✅ Barber initialization completed:', {
-          success: result.success,
-          source: result.source,
-          count: result.barbers.length,
-          message: result.message
+          success: barberResult.success,
+          source: barberResult.source,
+          count: barberResult.barbers.length,
+          message: barberResult.message
+        });
+
+        console.log('✅ Service initialization completed:', {
+          success: serviceResult.success,
+          source: serviceResult.source,
+          count: serviceResult.servicesData.services.length,
+          categories: serviceResult.servicesData.categories.length,
+          message: serviceResult.message
         });
       } catch (error) {
-        console.error('❌ Failed to initialize barbers in framework ready:', error);
+        console.error('❌ Failed to initialize app data in framework ready:', error);
       }
     };
 
     // Use a longer delay to ensure the app is fully stable and all contexts are ready
-    const timeoutId = setTimeout(initBarbers, 500);
+    const timeoutId = setTimeout(initializeAppData, 500);
     
     return () => clearTimeout(timeoutId);
   }, []);

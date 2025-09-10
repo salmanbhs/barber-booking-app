@@ -1,42 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, ArrowRight } from 'lucide-react-native';
 import { ServiceCard } from '@/components/ServiceCard';
-import { ApiService } from '@/utils/apiService';
-import { Service } from '@/types';
+import { useServices } from '@/contexts/ServiceContext';
 import { Colors } from '@/constants/Colors';
 
 export default function SelectServicesScreen() {
   const { barberId } = useLocalSearchParams();
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { services, isLoading, error, retry } = useServices();
 
-  useEffect(() => {
-    loadServices();
-  }, []);
 
-  const loadServices = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      const response = await ApiService.getServices();
-      
-      if (response.success && response.data) {
-        setServices(response.data.services);
-      } else {
-        setError(response.message || 'Failed to load services');
-      }
-    } catch (error) {
-      console.error('Error loading services:', error);
-      setError('Unable to load services. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleToggleService = (serviceId: string) => {
     setSelectedServices(prev => 
@@ -60,7 +35,7 @@ export default function SelectServicesScreen() {
 
   const totalDuration = services
     .filter(service => selectedServices.includes(service.id))
-    .reduce((total, service) => total + service.duration_minutes, 0);
+    .reduce((total, service) => total + service.duration, 0);
 
   const totalPrice = services
     .filter(service => selectedServices.includes(service.id))
@@ -96,7 +71,7 @@ export default function SelectServicesScreen() {
         </View>
         <View style={styles.centerContainer}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={loadServices}>
+          <TouchableOpacity style={styles.retryButton} onPress={retry}>
             <Text style={styles.retryText}>Try Again</Text>
           </TouchableOpacity>
         </View>

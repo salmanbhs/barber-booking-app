@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Calendar, Clock, User, Scissors, CreditCard } from 'lucide-react-native';
 import { useBarberById } from '@/contexts/BarberContext';
-import { mockServices } from '@/data/mockData';
+import { useServicesData } from '@/contexts/ServiceContext';
 import { Colors } from '@/constants/Colors';
 
 export default function SummaryScreen() {
@@ -10,7 +10,8 @@ export default function SummaryScreen() {
   const serviceIds = (services as string).split(',');
   
   const barber = useBarberById(barberId as string);
-  const selectedServices = mockServices.filter(s => serviceIds.includes(s.id));
+  const allServices = useServicesData();
+  const selectedServices = allServices.filter(s => serviceIds.includes(s.id));
   
   const totalDuration = selectedServices.reduce((total, service) => total + service.duration, 0);
   const totalPrice = selectedServices.reduce((total, service) => total + service.price, 0);

@@ -384,4 +384,60 @@ export class ApiService {
       };
     }
   }
+
+  // Fetch all services from the API
+  static async getServices(): Promise<ApiResponse> {
+    try {
+      const url = `${API_BASE_URL}/api/services`;
+      logApiCall(`Fetching services from: ${url}`);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const responseData = await response.json();
+      logApiCall(`Services response: ${response.ok ? 'Success' : 'Failed'}`);
+
+      if (response.ok && responseData.data && responseData.data.services) {
+        // Transform API response to match our Service interface
+        const transformedServices = responseData.data.services.map((apiService: any) => ({
+          id: apiService.id,
+          name: apiService.name,
+          description: apiService.description || 'Professional service',
+          duration: apiService.duration_minutes || 30,
+          price: apiService.price || 0,
+          category: apiService.category || 'general',
+          is_active: apiService.is_active
+        }));
+
+        logApiCall(`Transformed ${transformedServices.length} services`);
+
+        return {
+          success: true,
+          data: {
+            services: transformedServices,
+            servicesByCategory: responseData.data.servicesByCategory || {},
+            count: responseData.data.count || transformedServices.length,
+            categories: responseData.data.categories || []
+          },
+          message: responseData.message || 'Services fetched successfully',
+        };
+      } else {
+        return {
+          success: false,
+          data: { services: [], servicesByCategory: {}, count: 0, categories: [] },
+          message: responseData.message || 'No services data received',
+        };
+      }
+    } catch (error) {
+      console.error('Get services error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Network error occurred while fetching services',
+      };
+    }
+  }
 }

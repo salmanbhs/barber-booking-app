@@ -15,8 +15,10 @@ export interface Service {
   id: string;
   name: string;
   description: string;
-  duration: number;
+  duration: number; // duration_minutes from API
   price: number;
+  category: string;
+  is_active?: boolean;
 }
 
 export interface Booking {
