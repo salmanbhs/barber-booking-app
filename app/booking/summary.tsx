@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useBarberById } from '@/contexts/BarberContext';
 import { useServicesData } from '@/contexts/ServiceContext';
 import { ApiService } from '@/utils/apiService';
+import { DataCache } from '@/utils/dataCache';
 import Notification from '@/components/Notification';
 import { Colors } from '@/constants/Colors';
 
@@ -74,6 +75,13 @@ export default function SummaryScreen() {
 
       if (response.success) {
         showNotification('Booking confirmed successfully!', 'success');
+        
+        // Invalidate bookings cache to force refresh on dashboard
+        try {
+          await DataCache.fetchAndCacheBookings();
+        } catch (cacheError) {
+          console.warn('Failed to refresh bookings cache:', cacheError);
+        }
         
         // Redirect to dashboard after a short delay
         setTimeout(() => {

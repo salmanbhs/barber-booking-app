@@ -23,12 +23,20 @@ export interface Service {
 
 export interface Booking {
   id: string;
+  confirmation_code?: string;
   barberName: string;
+  barberId?: string;
   services: string[];
+  serviceIds?: string[];
   date: string;
   time: string;
+  duration?: number;
   totalPrice: number;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  notes?: string;
+  special_requests?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface AdminBooking {

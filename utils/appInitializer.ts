@@ -30,7 +30,7 @@ export class AppInitializer {
     }
   }
 
-  // Check authentication status
+  // Check authentication status and preload user data if authenticated
   private static async initializeAuth(): Promise<void> {
     try {
       console.log('🔐 Checking authentication status...');
@@ -40,6 +40,14 @@ export class AppInitializer {
       
       if (authData?.isAuthenticated && !isExpired) {
         console.log('✅ User is authenticated');
+        
+        // Preload user-specific data (bookings) if authenticated
+        try {
+          await DataCache.preloadUserData();
+        } catch (error) {
+          console.warn('⚠️ Failed to preload user data:', error);
+          // Don't throw - app should still work
+        }
       } else {
         console.log('ℹ️ User not authenticated or token expired');
       }

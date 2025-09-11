@@ -1,14 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ApiService } from './apiService';
-import { Barber, Service, CompanyConfig } from '@/types';
+import { Barber, Service, CompanyConfig, Booking } from '@/types';
 
 const CACHE_KEYS = {
   COMPANY_CONFIG: 'CACHED_COMPANY_CONFIG',
   BARBERS: 'CACHED_BARBERS',
   SERVICES: 'CACHED_SERVICES',
+  BOOKINGS: 'CACHED_BOOKINGS',
   LAST_FETCH_COMPANY: 'LAST_FETCH_COMPANY',
   LAST_FETCH_BARBERS: 'LAST_FETCH_BARBERS',
   LAST_FETCH_SERVICES: 'LAST_FETCH_SERVICES',
+  LAST_FETCH_BOOKINGS: 'LAST_FETCH_BOOKINGS',
 };
 
 // Cache data for 1 hour (3600 seconds)
@@ -28,6 +30,11 @@ export interface CachedServicesData {
   services: Service[];
   servicesByCategory: Record<string, Service[]>;
   categories: string[];
+  timestamp: number;
+}
+
+export interface CachedBookingsData {
+  bookings: Booking[];
   timestamp: number;
 }
 
@@ -91,6 +98,23 @@ export const DataCache = {
       console.log('✅ Services cached:', servicesData.services.length, 'services');
     } catch (error) {
       console.error('Error caching services:', error);
+    }
+  },
+
+  // Save bookings to cache
+  async cacheBookings(bookingsArray: Booking[]): Promise<void> {
+    try {
+      const cacheData: CachedBookingsData = {
+        bookings: bookingsArray,
+        timestamp: Date.now()
+      };
+      
+      await AsyncStorage.setItem(CACHE_KEYS.BOOKINGS, JSON.stringify(cacheData));
+      await AsyncStorage.setItem(CACHE_KEYS.LAST_FETCH_BOOKINGS, Date.now().toString());
+      
+      console.log('✅ Bookings cached:', bookingsArray.length, 'bookings');
+    } catch (error) {
+      console.error('Error caching bookings:', error);
     }
   },
 
@@ -165,6 +189,27 @@ export const DataCache = {
     return null;
   },
 
+  // Get cached bookings
+  async getCachedBookings(): Promise<Booking[] | null> {
+    try {
+      const cached = await AsyncStorage.getItem(CACHE_KEYS.BOOKINGS);
+      if (cached) {
+        const data: CachedBookingsData = JSON.parse(cached);
+        
+        if (this.isCacheValid(data.timestamp)) {
+          console.log('📋 Using cached bookings:', data.bookings.length, 'bookings');
+          return data.bookings;
+        } else {
+          console.log('⚠️ Bookings cache expired, will fetch fresh data');
+        }
+      }
+    } catch (error) {
+      console.error('Error reading cached bookings:', error);
+    }
+    
+    return null;
+  },
+
   // Fetch and cache company config
   async fetchAndCacheCompanyConfig(): Promise<CompanyConfig> {
     try {
@@ -228,6 +273,26 @@ export const DataCache = {
     }
   },
 
+  // Fetch and cache bookings
+  async fetchAndCacheBookings(): Promise<Booking[]> {
+    try {
+      console.log('🔄 Fetching user bookings from API...');
+      const response = await ApiService.getMyBookings();
+      
+      if (response.success && response.data) {
+        const bookingsData = response.data.bookings || [];
+        console.log('✅ Fetched', bookingsData.length, 'bookings from API');
+        await this.cacheBookings(bookingsData);
+        return bookingsData;
+      } else {
+        throw new Error(response.message || 'Failed to fetch bookings');
+      }
+    } catch (error) {
+      console.error('Error fetching bookings:', error);
+      throw error;
+    }
+  },
+
   // Get company config (cached first, then API if needed)
   async getCompanyConfig(): Promise<CompanyConfig | null> {
     try {
@@ -273,6 +338,18 @@ export const DataCache = {
     return this.fetchAndCacheServices();
   },
 
+  // Get bookings (cached first, then API if needed)
+  async getBookings(): Promise<Booking[]> {
+    // Try cache first
+    const cached = await this.getCachedBookings();
+    if (cached) {
+      return cached;
+    }
+    
+    // Fetch from API if cache miss/expired
+    return this.fetchAndCacheBookings();
+  },
+
   // Pre-load all data (for app initialization)
   async preloadData(): Promise<void> {
     console.log('🚀 Starting data preload...');
@@ -293,6 +370,19 @@ export const DataCache = {
     }
   },
 
+  // Pre-load authenticated user data (bookings)
+  async preloadUserData(): Promise<void> {
+    console.log('🚀 Starting user data preload...');
+    
+    try {
+      await this.fetchAndCacheBookings();
+      console.log('✅ User data preload completed successfully');
+    } catch (error) {
+      console.error('❌ User data preload failed:', error);
+      // Don't throw error - app should still work without user data
+    }
+  },
+
   // Force refresh all data
   async refreshAllData(): Promise<void> {
     console.log('🔄 Force refreshing all data...');
@@ -301,7 +391,8 @@ export const DataCache = {
       const promises = [
         this.fetchAndCacheCompanyConfig(),
         this.fetchAndCacheBarbers(),
-        this.fetchAndCacheServices()
+        this.fetchAndCacheServices(),
+        this.fetchAndCacheBookings()
       ];
       
       await Promise.all(promises);
@@ -319,9 +410,11 @@ export const DataCache = {
         AsyncStorage.removeItem(CACHE_KEYS.COMPANY_CONFIG),
         AsyncStorage.removeItem(CACHE_KEYS.BARBERS),
         AsyncStorage.removeItem(CACHE_KEYS.SERVICES),
+        AsyncStorage.removeItem(CACHE_KEYS.BOOKINGS),
         AsyncStorage.removeItem(CACHE_KEYS.LAST_FETCH_COMPANY),
         AsyncStorage.removeItem(CACHE_KEYS.LAST_FETCH_BARBERS),
-        AsyncStorage.removeItem(CACHE_KEYS.LAST_FETCH_SERVICES)
+        AsyncStorage.removeItem(CACHE_KEYS.LAST_FETCH_SERVICES),
+        AsyncStorage.removeItem(CACHE_KEYS.LAST_FETCH_BOOKINGS)
       ]);
       
       console.log('🗑️ Cache cleared successfully');

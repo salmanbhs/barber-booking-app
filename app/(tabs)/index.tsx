@@ -1,25 +1,33 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Plus, Calendar, Clock, User, MoveVertical as MoreVertical } from 'lucide-react-native';
 import { BookingCard } from '@/components/BookingCard';
 import NameCollectionPopup from '@/components/NameCollectionPopup';
-import { mockBookings } from '@/data/mockData';
 import { Colors, Theme } from '@/constants/Colors';
 import { AuthStorage } from '@/utils/authStorage';
 import { ApiService } from '@/utils/apiService';
+import { DataCache } from '@/utils/dataCache';
 import { AppEvents, EVENTS } from '@/utils/appEvents';
+import { Booking } from '@/types';
 import { useState, useEffect, useCallback } from 'react';
 
 export default function DashboardScreen() {
   const [userName, setUserName] = useState<string | null>(null);
   const [showNamePopup, setShowNamePopup] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState(true);
 
-  const upcomingBookings = mockBookings.filter(booking => booking.status === 'confirmed');
-  const pastBookings = mockBookings.filter(booking => booking.status === 'completed');
+  const upcomingBookings = bookings.filter(booking => 
+    booking.status === 'confirmed' || booking.status === 'pending'
+  );
+  const pastBookings = bookings.filter(booking => 
+    booking.status === 'completed' || booking.status === 'cancelled'
+  );
 
   useEffect(() => {
     checkUserName();
+    fetchBookings();
     
     // Listen for name updates from other screens
     const handleNameUpdate = (newName: string) => {
@@ -33,6 +41,7 @@ export default function DashboardScreen() {
         console.log('📡 Dashboard: Received logout event, resetting state');
         setUserName(null);
         setShowNamePopup(false);
+        setBookings([]); // Clear bookings on logout
       }
     };
     
@@ -46,10 +55,11 @@ export default function DashboardScreen() {
     };
   }, []);
 
-  // Refresh user name when the screen comes into focus
+  // Refresh user name and bookings when the screen comes into focus
   useFocusEffect(
     useCallback(() => {
       refreshUserName();
+      refreshBookings();
     }, [])
   );
 
@@ -66,6 +76,41 @@ export default function DashboardScreen() {
       // The popup should only be shown during initial checkUserName() flow
     } catch (error) {
       console.error('Error refreshing user name:', error);
+    }
+  };
+
+  const fetchBookings = async () => {
+    try {
+      console.log('🔍 Dashboard: Fetching user bookings...');
+      setLoadingBookings(true);
+      
+      const bookingsData = await DataCache.getBookings();
+      setBookings(bookingsData || []);
+      console.log('✅ Dashboard: Loaded', bookingsData?.length || 0, 'bookings');
+    } catch (error) {
+      console.error('❌ Dashboard: Error fetching bookings:', error);
+      setBookings([]);
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
+
+  const refreshBookings = async () => {
+    try {
+      console.log('🔄 Dashboard: Refreshing user bookings...');
+      
+      // Fetch fresh data from API
+      const response = await ApiService.getMyBookings();
+      if (response.success && response.data) {
+        const freshBookings = response.data.bookings || [];
+        setBookings(freshBookings);
+        
+        // Update cache in background
+        await DataCache.cacheBookings(freshBookings);
+        console.log('✅ Dashboard: Refreshed', freshBookings.length, 'bookings');
+      }
+    } catch (error) {
+      console.error('❌ Dashboard: Error refreshing bookings:', error);
     }
   };
 
@@ -199,9 +244,17 @@ export default function DashboardScreen() {
           <View style={styles.sectionHeader}>
             <Calendar size={20} color={Colors.gray800} />
             <Text style={styles.sectionTitle}>Upcoming Bookings</Text>
+            {loadingBookings && (
+              <ActivityIndicator size="small" color={Colors.primary} style={{ marginLeft: 8 }} />
+            )}
           </View>
           
-          {upcomingBookings.length > 0 ? (
+          {loadingBookings ? (
+            <View style={styles.loadingState}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={styles.loadingText}>Loading your bookings...</Text>
+            </View>
+          ) : upcomingBookings.length > 0 ? (
             <FlatList
               data={upcomingBookings}
               renderItem={({ item }) => (
@@ -225,7 +278,12 @@ export default function DashboardScreen() {
             <Text style={styles.sectionTitle}>Past Bookings</Text>
           </View>
           
-          {pastBookings.length > 0 ? (
+          {loadingBookings ? (
+            <View style={styles.loadingState}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={styles.loadingText}>Loading your bookings...</Text>
+            </View>
+          ) : pastBookings.length > 0 ? (
             <FlatList
               data={pastBookings}
               renderItem={({ item }) => (
@@ -337,5 +395,19 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: Theme.colors.textMuted,
     marginTop: 4,
+  },
+  loadingState: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    backgroundColor: Theme.colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Theme.colors.border,
+  },
+  loadingText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: Theme.colors.textSecondary,
+    marginTop: 12,
   },
 });

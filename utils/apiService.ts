@@ -537,6 +537,75 @@ export class ApiService {
     }
   }
 
+  // Get user's bookings
+  static async getMyBookings(): Promise<ApiResponse> {
+    try {
+      const url = `${API_BASE_URL}/api/bookings/my`;
+      logApiCall(`Fetching user bookings from: ${url}`);
+      
+      const response = await this.makeAuthenticatedRequest('/api/bookings/my', {
+        method: 'GET',
+      });
+
+      const responseData = await response.json();
+      logApiCall(`User bookings response: ${response.ok ? 'Success' : 'Failed'}`);
+
+      // Helper function to format time from 24-hour to 12-hour format
+      const formatTime = (time24: string): string => {
+        const [hours, minutes] = time24.split(':');
+        const hour = parseInt(hours);
+        const period = hour >= 12 ? 'PM' : 'AM';
+        const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+        return `${hour12}:${minutes} ${period}`;
+      };
+
+      if (response.ok && responseData.success && responseData.data) {
+        // Transform API response to match our Booking interface
+        // The data is a direct array of bookings, not nested under a bookings property
+        const transformedBookings = responseData.data.map((apiBooking: any) => ({
+          id: apiBooking.id,
+          confirmation_code: apiBooking.confirmation_code,
+          barberName: apiBooking.barber_name || apiBooking.barber?.name || 'Unknown Barber',
+          barberId: apiBooking.barber_id,
+          services: [apiBooking.services_summary], // Use services_summary as a single service name
+          serviceIds: [], // Not provided in this response format
+          date: apiBooking.appointment_date,
+          time: formatTime(apiBooking.appointment_time), // Convert to 12-hour format
+          duration: apiBooking.total_duration || 0,
+          totalPrice: apiBooking.total_amount || 0,
+          status: apiBooking.status || 'pending',
+          notes: apiBooking.notes,
+          special_requests: apiBooking.special_requests,
+          created_at: apiBooking.created_at,
+          updated_at: apiBooking.updated_at
+        }));
+
+        logApiCall(`Transformed ${transformedBookings.length} user bookings`);
+
+        return {
+          success: true,
+          data: {
+            bookings: transformedBookings,
+            count: responseData.count || transformedBookings.length
+          },
+          message: responseData.message || 'User bookings fetched successfully',
+        };
+      } else {
+        return {
+          success: false,
+          data: { bookings: [], count: 0 },
+          message: responseData.message || 'No bookings data received',
+        };
+      }
+    } catch (error) {
+      console.error('Get user bookings error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Network error occurred while fetching user bookings',
+      };
+    }
+  }
+
   // Create a new booking
   static async createBooking(bookingData: {
     appointment_date: string;
