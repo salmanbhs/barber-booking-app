@@ -1,23 +1,57 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Calendar, Clock } from 'lucide-react-native';
 import { TimeSlotGrid } from '@/components/TimeSlotGrid';
-import { generateTimeSlots } from '@/utils/timeUtils';
+import { generateTimeSlots, isDateAvailable, filterAvailableTimeSlots, OccupiedSlot } from '@/utils/timeUtils';
+import { ApiService } from '@/utils/apiService';
+import { useCompanyConfig } from '@/contexts';
 import { Colors } from '@/constants/Colors';
 
 export default function SelectTimeScreen() {
   const { barberId, services } = useLocalSearchParams();
+  const { companyConfig } = useCompanyConfig();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedTime, setSelectedTime] = useState('');
+  const [occupiedSlots, setOccupiedSlots] = useState<OccupiedSlot[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
   const dates = Array.from({ length: 7 }, (_, i) => {
     const date = new Date();
     date.setDate(date.getDate() + i);
     return date.toISOString().split('T')[0];
-  });
+  }).filter(date => isDateAvailable(date, companyConfig));
 
-  const timeSlots = generateTimeSlots();
+  // Fetch occupied slots when date or barber changes
+  useEffect(() => {
+    if (barberId && selectedDate) {
+      fetchOccupiedSlots();
+    }
+  }, [barberId, selectedDate]);
+
+  const fetchOccupiedSlots = async () => {
+    if (!barberId || !selectedDate) return;
+    
+    setIsLoadingSlots(true);
+    try {
+      const response = await ApiService.getBarberOccupiedSlots(barberId as string, selectedDate);
+      if (response.success && response.data) {
+        setOccupiedSlots(response.data.occupied_slots || []);
+      } else {
+        console.warn('Failed to fetch occupied slots:', response.message);
+        setOccupiedSlots([]);
+      }
+    } catch (error) {
+      console.error('Error fetching occupied slots:', error);
+      setOccupiedSlots([]);
+    } finally {
+      setIsLoadingSlots(false);
+    }
+  };
+
+  // Generate all possible time slots and filter out occupied ones
+  const allTimeSlots = generateTimeSlots(selectedDate, companyConfig);
+  const availableTimeSlots = filterAvailableTimeSlots(allTimeSlots, occupiedSlots);
 
   const handleContinue = () => {
     if (!selectedTime) return;
@@ -91,13 +125,24 @@ export default function SelectTimeScreen() {
           <View style={styles.sectionHeader}>
             <Clock size={20} color="#1E293B" />
             <Text style={styles.sectionTitle}>Available Times</Text>
+            {isLoadingSlots && (
+              <Text style={styles.loadingText}>Loading...</Text>
+            )}
           </View>
           
-          <TimeSlotGrid
-            slots={timeSlots}
-            selectedSlot={selectedTime}
-            onSelectSlot={setSelectedTime}
-          />
+          {availableTimeSlots.length > 0 ? (
+            <TimeSlotGrid
+              slots={availableTimeSlots}
+              selectedSlot={selectedTime}
+              onSelectSlot={setSelectedTime}
+            />
+          ) : (
+            <View style={styles.noSlotsContainer}>
+              <Text style={styles.noSlotsText}>
+                {isLoadingSlots ? 'Loading available times...' : 'No available time slots for this date'}
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -198,5 +243,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
     color: 'white',
+  },
+  loadingText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontStyle: 'italic',
+    marginLeft: 8,
+  },
+  noSlotsContainer: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    padding: 24,
+    alignItems: 'center',
+  },
+  noSlotsText: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
   },
 });

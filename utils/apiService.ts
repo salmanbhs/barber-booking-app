@@ -496,4 +496,44 @@ export class ApiService {
       };
     }
   }
+
+  // Fetch barber occupied slots for a specific date
+  static async getBarberOccupiedSlots(barberId: string, date: string): Promise<ApiResponse> {
+    try {
+      const url = `${API_BASE_URL}/api/booking/barber-occupied-slots?date=${date}&barber_id=${barberId}`;
+      logApiCall(`Fetching barber occupied slots from: ${url}`);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const responseData = await response.json();
+      logApiCall(`Barber occupied slots response: ${response.ok ? 'Success' : 'Failed'}`);
+
+      if (response.ok && responseData.success && responseData.data) {
+        logApiCall(`Fetched ${responseData.data.occupied_slots?.length || 0} occupied slots for barber ${barberId} on ${date}`);
+        
+        return {
+          success: true,
+          data: responseData.data,
+          message: responseData.message || 'Occupied slots fetched successfully',
+        };
+      } else {
+        return {
+          success: false,
+          data: null,
+          message: responseData.message || 'Failed to fetch occupied slots',
+        };
+      }
+    } catch (error) {
+      console.error('Get barber occupied slots error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Network error occurred while fetching occupied slots',
+      };
+    }
+  }
 }
