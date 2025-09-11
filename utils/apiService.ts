@@ -331,6 +331,46 @@ export class ApiService {
     }
   }
 
+  // Fetch company configuration from the API
+  static async getCompanyConfig(): Promise<ApiResponse> {
+    try {
+      const url = `${API_BASE_URL}/api/company/config`;
+      logApiCall(`Fetching company config from: ${url}`);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const responseData = await response.json();
+      logApiCall(`Company config response: ${response.ok ? 'Success' : 'Failed'}`);
+
+      if (response.ok && responseData.success && responseData.data) {
+        logApiCall(`Company config fetched successfully: ${responseData.data.company_name}`);
+        
+        return {
+          success: true,
+          data: responseData.data,
+          message: 'Company config fetched successfully',
+        };
+      } else {
+        return {
+          success: false,
+          data: null,
+          message: responseData.message || 'Failed to fetch company config',
+        };
+      }
+    } catch (error) {
+      console.error('Get company config error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Network error occurred while fetching company config',
+      };
+    }
+  }
+
   // Fetch all barbers from the API
   static async getBarbers(): Promise<ApiResponse> {
     try {
@@ -413,13 +453,29 @@ export class ApiService {
           is_active: apiService.is_active
         }));
 
-        logApiCall(`Transformed ${transformedServices.length} services`);
+        // Transform servicesByCategory to match our Service interface
+        const transformedServicesByCategory: Record<string, any[]> = {};
+        if (responseData.data.servicesByCategory) {
+          Object.keys(responseData.data.servicesByCategory).forEach(category => {
+            transformedServicesByCategory[category] = responseData.data.servicesByCategory[category].map((apiService: any) => ({
+              id: apiService.id,
+              name: apiService.name,
+              description: apiService.description || 'Professional service',
+              duration: apiService.duration_minutes || 30,
+              price: apiService.price || 0,
+              category: apiService.category || 'general',
+              is_active: apiService.is_active
+            }));
+          });
+        }
+
+        logApiCall(`Transformed ${transformedServices.length} services with ${Object.keys(transformedServicesByCategory).length} categories`);
 
         return {
           success: true,
           data: {
             services: transformedServices,
-            servicesByCategory: responseData.data.servicesByCategory || {},
+            servicesByCategory: transformedServicesByCategory,
             count: responseData.data.count || transformedServices.length,
             categories: responseData.data.categories || []
           },

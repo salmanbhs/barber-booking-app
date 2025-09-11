@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { BarberInitService, BarberInitResult } from '@/utils/barberInitService';
+import { DataCache } from '@/utils/dataCache';
+import { appInitManager } from '@/utils/appInitManager';
 import { Barber } from '@/types';
 
 export interface UseBarberInitState {
@@ -19,32 +20,39 @@ export function useBarberInit() {
     lastUpdated: null
   });
 
-  const initializeBarbers = async () => {
+  const loadBarbersFromCache = async () => {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      const result: BarberInitResult = await BarberInitService.initializeBarbers();
+      // Wait for app initialization to complete
+      await appInitManager.initialize();
       
-      setState({
-        barbers: result.barbers,
-        isLoading: false,
-        error: result.success ? null : (result.message || 'Failed to load barbers'),
-        source: result.source,
-        lastUpdated: new Date()
-      });
-
-      if (result.success) {
-        console.log(`✅ Barbers initialized from ${result.source}:`, result.barbers.length, 'barbers');
+      // Get barbers from cache (should be available after app init)
+      const cachedBarbers = await DataCache.getCachedBarbers();
+      
+      if (cachedBarbers && cachedBarbers.length > 0) {
+        setState({
+          barbers: cachedBarbers,
+          isLoading: false,
+          error: null,
+          source: 'cache',
+          lastUpdated: new Date()
+        });
+        console.log(`✅ Barbers loaded from cache:`, cachedBarbers.length, 'barbers');
       } else {
-        console.warn('⚠️ Barber initialization failed:', result.message);
-        // Even if initialization "failed", we might have barbers from cache
-        if (result.barbers.length > 0) {
-          console.log('📱 Still have barbers from cache, treating as success');
-          setState(prev => ({ ...prev, error: null }));
-        }
+        // No fallback API call - app init should have populated cache
+        console.warn('⚠️ No cached barbers found after app initialization');
+        setState({
+          barbers: [],
+          isLoading: false,
+          error: 'No barbers data available',
+          source: 'none',
+          lastUpdated: null
+        });
       }
+
     } catch (error) {
-      console.error('❌ Error in useBarberInit:', error);
+      console.error('❌ Error loading barbers:', error);
       setState(prev => ({
         ...prev,
         isLoading: false,
@@ -57,15 +65,16 @@ export function useBarberInit() {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      const result: BarberInitResult = await BarberInitService.refreshBarbers();
+      const freshBarbers = await DataCache.fetchAndCacheBarbers();
       
       setState({
-        barbers: result.barbers,
+        barbers: freshBarbers,
         isLoading: false,
-        error: result.success ? null : (result.message || 'Failed to refresh barbers'),
-        source: result.source,
+        error: null,
+        source: 'api',
         lastUpdated: new Date()
       });
+      console.log(`✅ Barbers refreshed from API:`, freshBarbers.length, 'barbers');
     } catch (error) {
       console.error('❌ Error refreshing barbers:', error);
       setState(prev => ({
@@ -77,12 +86,12 @@ export function useBarberInit() {
   };
 
   useEffect(() => {
-    initializeBarbers();
+    loadBarbersFromCache();
   }, []);
 
   return {
     ...state,
     refresh: refreshBarbers,
-    retry: initializeBarbers
+    retry: loadBarbersFromCache
   };
 }

@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
-import { ServiceInitService, ServiceInitResult } from '@/utils/serviceInitService';
+import { DataCache } from '@/utils/dataCache';
+import { appInitManager } from '@/utils/appInitManager';
 import { Service } from '@/types';
-import { ServicesData } from '@/utils/serviceStorage';
+
+export interface ServicesData {
+  services: Service[];
+  servicesByCategory: Record<string, Service[]>;
+  categories: string[];
+  count: number;
+}
 
 export interface UseServiceInitState {
   services: Service[];
@@ -22,33 +29,51 @@ export function useServiceInit() {
     lastUpdated: null
   });
 
-  const initializeServices = async () => {
+  const loadServicesFromCache = async () => {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      const result: ServiceInitResult = await ServiceInitService.initializeServices();
+      // Wait for app initialization to complete
+      await appInitManager.initialize();
       
-      setState({
-        services: result.servicesData.services,
-        servicesData: result.servicesData,
-        isLoading: false,
-        error: result.success ? null : (result.message || 'Failed to load services'),
-        source: result.source,
-        lastUpdated: new Date()
-      });
-
-      if (result.success) {
-        console.log(`✅ Services initialized from ${result.source}:`, result.servicesData.services.length, 'services');
+      // Get services from cache (should be available after app init)
+      const cachedData = await DataCache.getCachedServices();
+      
+      if (cachedData && cachedData.services.length > 0) {
+        setState({
+          services: cachedData.services,
+          servicesData: {
+            services: cachedData.services,
+            servicesByCategory: cachedData.servicesByCategory,
+            categories: cachedData.categories,
+            count: cachedData.services.length
+          },
+          isLoading: false,
+          error: null,
+          source: 'cache',
+          lastUpdated: new Date()
+        });
+        console.log(`✅ Services loaded from cache:`, cachedData.services.length, 'services');
       } else {
-        console.warn('⚠️ Service initialization failed:', result.message);
-        // Even if initialization "failed", we might have services from cache
-        if (result.servicesData.services.length > 0) {
-          console.log('📱 Still have services from cache, treating as success');
-          setState(prev => ({ ...prev, error: null }));
-        }
+        // No fallback API call - app init should have populated cache
+        console.warn('⚠️ No cached services found after app initialization');
+        setState({
+          services: [],
+          servicesData: {
+            services: [],
+            servicesByCategory: {},
+            categories: [],
+            count: 0
+          },
+          isLoading: false,
+          error: 'No services data available',
+          source: 'none',
+          lastUpdated: null
+        });
       }
+
     } catch (error) {
-      console.error('❌ Error in useServiceInit:', error);
+      console.error('❌ Error loading services:', error);
       setState(prev => ({
         ...prev,
         isLoading: false,
@@ -61,16 +86,21 @@ export function useServiceInit() {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      const result: ServiceInitResult = await ServiceInitService.refreshServices();
+      const freshServices = await DataCache.fetchAndCacheServices();
+      const servicesData = {
+        ...freshServices,
+        count: freshServices.services.length
+      };
       
       setState({
-        services: result.servicesData.services,
-        servicesData: result.servicesData,
+        services: freshServices.services,
+        servicesData,
         isLoading: false,
-        error: result.success ? null : (result.message || 'Failed to refresh services'),
-        source: result.source,
+        error: null,
+        source: 'api',
         lastUpdated: new Date()
       });
+      console.log(`✅ Services refreshed from API:`, freshServices.services.length, 'services');
     } catch (error) {
       console.error('❌ Error refreshing services:', error);
       setState(prev => ({
@@ -82,12 +112,12 @@ export function useServiceInit() {
   };
 
   useEffect(() => {
-    initializeServices();
+    loadServicesFromCache();
   }, []);
 
   return {
     ...state,
     refresh: refreshServices,
-    retry: initializeServices
+    retry: loadServicesFromCache
   };
 }

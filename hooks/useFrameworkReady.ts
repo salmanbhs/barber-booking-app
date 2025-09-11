@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
-import { BarberInitService } from '@/utils/barberInitService';
-import { ServiceInitService } from '@/utils/serviceInitService';
+import { appInitManager } from '@/utils/appInitManager';
 
 declare global {
   interface Window {
@@ -13,33 +12,13 @@ export function useFrameworkReady() {
     // Call the original framework ready callback
     window.frameworkReady?.();
     
-    // Initialize barbers and services when framework is ready and stable
+    // Initialize app data when framework is ready and stable
     const initializeAppData = async () => {
       try {
-        console.log('🎯 Framework ready, initializing app data...');
-        
-        // Initialize barbers and services in parallel
-        const [barberResult, serviceResult] = await Promise.all([
-          BarberInitService.initializeBarbers(),
-          ServiceInitService.initializeServices()
-        ]);
-        
-        console.log('✅ Barber initialization completed:', {
-          success: barberResult.success,
-          source: barberResult.source,
-          count: barberResult.barbers.length,
-          message: barberResult.message
-        });
-
-        console.log('✅ Service initialization completed:', {
-          success: serviceResult.success,
-          source: serviceResult.source,
-          count: serviceResult.servicesData.services.length,
-          categories: serviceResult.servicesData.categories.length,
-          message: serviceResult.message
-        });
+        console.log('🎯 Framework ready, initializing app...');
+        await appInitManager.initialize();
       } catch (error) {
-        console.error('❌ Failed to initialize app data in framework ready:', error);
+        console.error('❌ Failed to initialize app in framework ready:', error);
       }
     };
 
