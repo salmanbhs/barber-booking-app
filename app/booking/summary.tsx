@@ -1,8 +1,11 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Calendar, Clock, User, Scissors, CreditCard } from 'lucide-react-native';
+import { useState } from 'react';
 import { useBarberById } from '@/contexts/BarberContext';
 import { useServicesData } from '@/contexts/ServiceContext';
+import { ApiService } from '@/utils/apiService';
+import Notification from '@/components/Notification';
 import { Colors } from '@/constants/Colors';
 
 export default function SummaryScreen() {
@@ -16,8 +19,75 @@ export default function SummaryScreen() {
   const totalDuration = selectedServices.reduce((total, service) => total + service.duration, 0);
   const totalPrice = selectedServices.reduce((total, service) => total + service.price, 0);
 
-  const handleConfirmBooking = () => {
-    router.push('/booking/confirmation');
+  const [isLoading, setIsLoading] = useState(false);
+  const [notification, setNotification] = useState<{
+    visible: boolean;
+    message: string;
+    type: 'success' | 'error';
+  }>({
+    visible: false,
+    message: '',
+    type: 'success'
+  });
+
+  const showNotification = (message: string, type: 'success' | 'error') => {
+    setNotification({
+      visible: true,
+      message,
+      type
+    });
+  };
+
+  const hideNotification = () => {
+    setNotification(prev => ({ ...prev, visible: false }));
+  };
+
+  const convertTo24Hour = (time12h: string): string => {
+    const [time, period] = time12h.split(' ');
+    let [hours, minutes] = time.split(':');
+    
+    if (period === 'PM' && hours !== '12') {
+      hours = String(parseInt(hours) + 12);
+    } else if (period === 'AM' && hours === '12') {
+      hours = '00';
+    }
+    
+    return `${hours.padStart(2, '0')}:${minutes}`;
+  };
+
+  const handleConfirmBooking = async () => {
+    if (isLoading) return;
+
+    setIsLoading(true);
+
+    try {
+      const bookingData = {
+        appointment_date: date as string,
+        appointment_time: convertTo24Hour(time as string), // Convert to HH:MM format
+        services: serviceIds,
+        barber_id: barberId as string,
+        notes: '',
+        special_requests: ''
+      };
+
+      const response = await ApiService.createBooking(bookingData);
+
+      if (response.success) {
+        showNotification('Booking confirmed successfully!', 'success');
+        
+        // Redirect to dashboard after a short delay
+        setTimeout(() => {
+          router.replace('/(tabs)');
+        }, 1500);
+      } else {
+        showNotification(response.message || 'Failed to create booking', 'error');
+      }
+    } catch (error) {
+      console.error('Booking error:', error);
+      showNotification('Something went wrong. Please try again.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const formatDate = (dateStr: string) => {
@@ -31,6 +101,13 @@ export default function SummaryScreen() {
 
   return (
     <View style={styles.container}>
+      <Notification
+        visible={notification.visible}
+        message={notification.message}
+        type={notification.type}
+        onHide={hideNotification}
+      />
+      
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <ArrowLeft size={24} color="#1E293B" />
@@ -98,8 +175,22 @@ export default function SummaryScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmBooking}>
-          <Text style={styles.confirmText}>Confirm Booking</Text>
+        <TouchableOpacity 
+          style={[
+            styles.confirmButton,
+            isLoading && styles.confirmButtonDisabled
+          ]} 
+          onPress={handleConfirmBooking}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="white" />
+              <Text style={[styles.confirmText, { marginLeft: 8 }]}>Creating Booking...</Text>
+            </View>
+          ) : (
+            <Text style={styles.confirmText}>Confirm Booking</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -196,6 +287,14 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  confirmButtonDisabled: {
+    backgroundColor: '#94A3B8',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   confirmText: {
     fontSize: 16,

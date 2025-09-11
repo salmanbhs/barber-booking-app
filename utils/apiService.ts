@@ -536,4 +536,55 @@ export class ApiService {
       };
     }
   }
+
+  // Create a new booking
+  static async createBooking(bookingData: {
+    appointment_date: string;
+    appointment_time: string;
+    services: string[];
+    barber_id: string;
+    notes?: string;
+    special_requests?: string;
+  }): Promise<ApiResponse> {
+    try {
+      const url = `${API_BASE_URL}/api/bookings`;
+      logApiCall(`Creating booking at: ${url}`);
+      logApiCall(`Booking data: ${JSON.stringify(bookingData, null, 2)}`);
+      
+      const response = await this.makeAuthenticatedRequest('/api/bookings', {
+        method: 'POST',
+        body: JSON.stringify(bookingData),
+      });
+
+      const responseData = await response.json();
+      logApiCall(`Create booking response: ${response.ok ? 'Success' : 'Failed'}`);
+      logApiCall(`Response data: ${JSON.stringify(responseData, null, 2)}`);
+
+      if (response.ok && responseData.success && responseData.data) {
+        logApiCall(`Booking created successfully with confirmation code: ${responseData.data.confirmation_code}`);
+        
+        return {
+          success: true,
+          data: responseData.data, // The booking data is under responseData.data
+          message: responseData.message || 'Booking created successfully',
+        };
+      } else {
+        // Handle error response format {error: "message"}
+        const errorMessage = responseData.error || responseData.message || 'Failed to create booking';
+        logApiCall(`Booking creation failed: ${errorMessage}`);
+        
+        return {
+          success: false,
+          data: null,
+          message: errorMessage,
+        };
+      }
+    } catch (error) {
+      console.error('Create booking error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Network error occurred while creating booking',
+      };
+    }
+  }
 }
