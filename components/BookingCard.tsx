@@ -1,11 +1,13 @@
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Modal } from 'react-native';
 import { Calendar, Clock, User } from 'lucide-react-native';
-import { Booking } from '@/types';
+import { Booking, Service } from '@/types';
 import { Colors, Theme } from '@/constants/Colors';
 import { formatRelativeDate } from '@/utils/timeUtils';
 import { ApiService } from '@/utils/apiService';
 import { DataCache } from '@/utils/dataCache';
+import { BookingStorage } from '@/utils/bookingStorage';
 import { useState } from 'react';
+import { router } from 'expo-router';
 
 interface BookingCardProps {
   booking: Booking;
@@ -109,6 +111,86 @@ export function BookingCard({ booking, type, onBookingUpdated }: BookingCardProp
     }
   };
 
+  const handleBookAgain = async () => {
+    console.log('🔄 Book again button pressed for booking:', booking.id);
+    console.log('🔄 Reusing barber and services:', {
+      barberId: booking.barberId,
+      barberName: booking.barberName,
+      services: booking.services,
+      serviceIds: booking.serviceIds
+    });
+
+    try {
+      // First, get the cached barbers to find the full barber object
+      const barbers = await DataCache.getBarbers();
+      const barber = barbers.find(b => b.id === booking.barberId);
+      
+      if (!barber) {
+        console.error('❌ Barber not found in cache:', booking.barberId);
+        try {
+          Alert.alert(
+            'Error',
+            'Could not find barber information. Please select a barber manually.',
+            [{ text: 'OK' }]
+          );
+        } catch (alertError) {
+          console.error('❌ ERROR: Could not find barber information');
+        }
+        return;
+      }
+
+      // Get the cached services to find the full service objects
+      const servicesData = await DataCache.getServices();
+      const selectedServices = servicesData.services.filter((service: Service) => 
+        booking.services.includes(service.name) || 
+        (booking.serviceIds && booking.serviceIds.includes(service.id))
+      );
+
+      if (selectedServices.length === 0) {
+        console.error('❌ Services not found in cache:', booking.services);
+        try {
+          Alert.alert(
+            'Error',
+            'Could not find service information. Please select services manually.',
+            [{ text: 'OK' }]
+          );
+        } catch (alertError) {
+          console.error('❌ ERROR: Could not find service information');
+        }
+        return;
+      }
+
+      console.log('✅ Found barber and services, saving to booking storage');
+      
+      // Save the barber and services to booking storage
+      await BookingStorage.saveBarber(barber);
+      await BookingStorage.saveServices(selectedServices);
+      
+      console.log('🚀 Navigating to select time page with params');
+      
+      // Navigate to select time page with URL parameters (like the normal flow)
+      router.push({
+        pathname: '/booking/select-time',
+        params: { 
+          barberId: booking.barberId!,
+          services: selectedServices.map(s => s.id).join(',')
+        }
+      });
+      
+    } catch (error) {
+      console.error('❌ Book again error:', error);
+      try {
+        Alert.alert(
+          'Error',
+          'Something went wrong. Please try booking manually.',
+          [{ text: 'OK' }]
+        );
+      } catch (alertError) {
+        console.error('❌ ERROR: Something went wrong with book again');
+      }
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -163,7 +245,10 @@ export function BookingCard({ booking, type, onBookingUpdated }: BookingCardProp
               )}
             </>
           ) : (
-              <TouchableOpacity style={styles.bookAgainButton}>
+              <TouchableOpacity 
+                style={styles.bookAgainButton}
+                onPress={handleBookAgain}
+              >
                 <Text style={styles.bookAgainText}>Book Again</Text>
               </TouchableOpacity>
           )}
