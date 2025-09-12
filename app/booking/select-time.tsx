@@ -3,55 +3,38 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Calendar, Clock } from 'lucide-react-native';
 import { TimeSlotGrid } from '@/components/TimeSlotGrid';
-import { generateTimeSlots, isDateAvailable, filterAvailableTimeSlots, OccupiedSlot } from '@/utils/timeUtils';
-import { ApiService } from '@/utils/apiService';
+import { generateTimeSlots, isDateAvailable } from '@/utils/timeUtils';
 import { useCompanyConfig } from '@/contexts';
 import { Colors } from '@/constants/Colors';
 
 export default function SelectTimeScreen() {
   const { barberId, services } = useLocalSearchParams();
-  const { companyConfig } = useCompanyConfig();
+  const { companyConfig, isLoading: configLoading } = useCompanyConfig();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedTime, setSelectedTime] = useState('');
-  const [occupiedSlots, setOccupiedSlots] = useState<OccupiedSlot[]>([]);
-  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
+  // Generate dates based on company config availability
   const dates = Array.from({ length: 7 }, (_, i) => {
     const date = new Date();
     date.setDate(date.getDate() + i);
     return date.toISOString().split('T')[0];
-  }).filter(date => isDateAvailable(date, companyConfig));
-
-  // Fetch occupied slots when date or barber changes
-  useEffect(() => {
-    if (barberId && selectedDate) {
-      fetchOccupiedSlots();
-    }
-  }, [barberId, selectedDate]);
-
-  const fetchOccupiedSlots = async () => {
-    if (!barberId || !selectedDate) return;
-    
-    setIsLoadingSlots(true);
-    try {
-      const response = await ApiService.getBarberOccupiedSlots(barberId as string, selectedDate);
-      if (response.success && response.data) {
-        setOccupiedSlots(response.data.occupied_slots || []);
-      } else {
-        console.warn('Failed to fetch occupied slots:', response.message);
-        setOccupiedSlots([]);
-      }
-    } catch (error) {
-      console.error('Error fetching occupied slots:', error);
-      setOccupiedSlots([]);
-    } finally {
-      setIsLoadingSlots(false);
-    }
-  };
+  })
+  .filter(Boolean) // Remove any falsy values
+  .filter(date => isDateAvailable(date, companyConfig)); // Filter based on working days
 
   // Generate all possible time slots and filter out occupied ones
-  const allTimeSlots = generateTimeSlots(selectedDate, companyConfig);
-  const availableTimeSlots = filterAvailableTimeSlots(allTimeSlots, occupiedSlots);
+  // Generate time slots based on company config and selected date
+  const timeSlots = generateTimeSlots(selectedDate, companyConfig);
+  const availableTimeSlots = timeSlots;
+
+  // Loading state
+  if (configLoading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ fontSize: 16, color: '#64748B' }}>Loading available times...</Text>
+      </View>
+    );
+  }
 
   const handleContinue = () => {
     if (!selectedTime) return;
@@ -68,19 +51,26 @@ export default function SelectTimeScreen() {
   };
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    try {
+      const date = new Date(dateStr);
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
 
-    if (dateStr === today.toISOString().split('T')[0]) return 'Today';
-    if (dateStr === tomorrow.toISOString().split('T')[0]) return 'Tomorrow';
-    
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric'
-    });
+      if (dateStr === today.toISOString().split('T')[0]) return 'Today';
+      if (dateStr === tomorrow.toISOString().split('T')[0]) return 'Tomorrow';
+      
+      const formatted = date.toLocaleDateString('en-US', { 
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
+      });
+      
+      return formatted || dateStr; // Fallback to original string if formatting fails
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return dateStr; // Return the original string if there's an error
+    }
   };
 
   return (
@@ -90,7 +80,7 @@ export default function SelectTimeScreen() {
           <ArrowLeft size={24} color="#1E293B" />
         </TouchableOpacity>
         <Text style={styles.title}>Select Time</Text>
-        <View style={{ width: 40 }} />
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -101,23 +91,28 @@ export default function SelectTimeScreen() {
           </View>
           
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dateScroll}>
-            {dates.map((date) => (
-              <TouchableOpacity
-                key={date}
-                style={[
-                  styles.dateCard,
-                  selectedDate === date && styles.dateCardSelected
-                ]}
-                onPress={() => setSelectedDate(date)}
-              >
-                <Text style={[
-                  styles.dateText,
-                  selectedDate === date && styles.dateTextSelected
-                ]}>
-                  {formatDate(date)}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {dates.filter(date => date).map((date) => {
+              const formattedDate = formatDate(date);
+              if (!formattedDate) return null; // Skip if formatting failed
+              
+              return (
+                <TouchableOpacity
+                  key={`date-${date}`}
+                  style={[
+                    styles.dateCard,
+                    selectedDate === date && styles.dateCardSelected
+                  ]}
+                  onPress={() => setSelectedDate(date)}
+                >
+                  <Text style={[
+                    styles.dateText,
+                    selectedDate === date && styles.dateTextSelected
+                  ]}>
+                    {formattedDate}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
 
@@ -125,21 +120,18 @@ export default function SelectTimeScreen() {
           <View style={styles.sectionHeader}>
             <Clock size={20} color="#1E293B" />
             <Text style={styles.sectionTitle}>Available Times</Text>
-            {isLoadingSlots && (
-              <Text style={styles.loadingText}>Loading...</Text>
-            )}
           </View>
           
-          {availableTimeSlots.length > 0 ? (
+          {availableTimeSlots && availableTimeSlots.length > 0 ? (
             <TimeSlotGrid
               slots={availableTimeSlots}
-              selectedSlot={selectedTime}
-              onSelectSlot={setSelectedTime}
+              selectedSlot={selectedTime || ''}
+              onSelectSlot={(slot) => setSelectedTime(slot)}
             />
           ) : (
             <View style={styles.noSlotsContainer}>
               <Text style={styles.noSlotsText}>
-                {isLoadingSlots ? 'Loading available times...' : 'No available time slots for this date'}
+                No available time slots for this date
               </Text>
             </View>
           )}
@@ -183,6 +175,9 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontFamily: 'Inter-Bold',
     color: '#1E293B',
+  },
+  headerSpacer: {
+    width: 40,
   },
   content: {
     flex: 1,

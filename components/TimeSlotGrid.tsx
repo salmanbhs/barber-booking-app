@@ -12,7 +12,6 @@ export function TimeSlotGrid({ slots, selectedSlot, onSelectSlot }: TimeSlotGrid
     <View style={styles.container}>
       {slots.map((slot, index) => {
         const isSelected = selectedSlot === slot;
-        const isUnavailable = Math.random() > 0.7; // Simulate some unavailable slots
         
         return (
           <TouchableOpacity
@@ -20,16 +19,13 @@ export function TimeSlotGrid({ slots, selectedSlot, onSelectSlot }: TimeSlotGrid
             style={[
               styles.slot,
               isSelected && styles.slotSelected,
-              isUnavailable && styles.slotUnavailable,
             ]}
-            onPress={() => !isUnavailable && onSelectSlot(slot)}
-            disabled={isUnavailable}
+            onPress={() => onSelectSlot(slot)}
           >
             <Text
               style={[
                 styles.slotText,
                 isSelected && styles.slotTextSelected,
-                isUnavailable && styles.slotTextUnavailable,
               ]}
             >
               {slot}
@@ -61,10 +57,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
   },
-  slotUnavailable: {
-    backgroundColor: Colors.gray100,
-    borderColor: Theme.colors.border,
-  },
   slotText: {
     fontSize: 14,
     fontFamily: 'Inter-SemiBold',
@@ -72,8 +64,5 @@ const styles = StyleSheet.create({
   },
   slotTextSelected: {
     color: Colors.white,
-  },
-  slotTextUnavailable: {
-    color: Colors.gray300,
   },
 });
