@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Calendar, Clock, User, MoveVertical as MoreVertical } from 'lucide-react-native';
 import { Booking } from '@/types';
 import { Colors, Theme } from '@/constants/Colors';
+import { formatRelativeDate } from '@/utils/timeUtils';
 
 interface BookingCardProps {
   booking: Booking;
@@ -12,11 +13,7 @@ export function BookingCard({ booking, type }: BookingCardProps) {
   const isUpcoming = type === 'upcoming';
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric'
-    });
+    return formatRelativeDate(dateStr);
   };
 
   return (

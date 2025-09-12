@@ -245,6 +245,64 @@ export function formatDateTime(date: string, time: string): string {
   })} at ${time}`;
 }
 
+export function formatRelativeDate(dateStr: string): string {
+  const inputDate = new Date(dateStr);
+  const today = new Date();
+  
+  // Reset time to compare only dates
+  const inputDateOnly = new Date(inputDate.getFullYear(), inputDate.getMonth(), inputDate.getDate());
+  const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  
+  // Calculate difference in days
+  const diffTime = inputDateOnly.getTime() - todayOnly.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+  
+  console.log(`📅 Relative date for ${dateStr}: ${diffDays} days from today`);
+  
+  if (diffDays === 0) {
+    return 'Today';
+  } else if (diffDays === 1) {
+    return 'Tomorrow';
+  } else if (diffDays === -1) {
+    return 'Yesterday';
+  } else if (diffDays > 1 && diffDays <= 7) {
+    // Show day of week for next 7 days
+    return inputDate.toLocaleDateString('en-US', { weekday: 'long' });
+  } else if (diffDays < -1 && diffDays >= -7) {
+    // Show day of week for last 7 days
+    return inputDate.toLocaleDateString('en-US', { weekday: 'long' });
+  } else {
+    // Show formatted date for dates beyond a week
+    return inputDate.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
+    });
+  }
+}
+
+// Utility function to test relative date formatting (for debugging)
+export function testRelativeDateFormatting() {
+  const today = new Date();
+  const testDates = [
+    // Yesterday
+    new Date(today.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    // Today
+    today.toISOString().split('T')[0],
+    // Tomorrow
+    new Date(today.getTime() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    // Next week
+    new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    // Last week
+    new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+  ];
+
+  console.log('🧪 Testing relative date formatting:');
+  testDates.forEach(date => {
+    const formatted = formatRelativeDate(date);
+    console.log(`📅 ${date} → "${formatted}"`);
+  });
+}
+
 export function isDateAvailable(date: string, companyConfig?: CompanyConfig | null): boolean {
   const targetDate = new Date(date);
   const dayOfWeek = targetDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
