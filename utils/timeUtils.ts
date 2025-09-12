@@ -162,19 +162,55 @@ export function filterAvailableTimeSlots(
     return allSlots;
   }
 
-  return allSlots.filter(slot => {
+  console.log('🔍 Filtering time slots:', {
+    totalSlots: allSlots.length,
+    occupiedCount: occupiedSlots.length,
+    allSlots,
+    occupiedSlots: occupiedSlots.map(slot => ({
+      start: slot.start_time,
+      end: slot.end_time,
+      duration: slot.duration_minutes
+    }))
+  });
+
+  const availableSlots = allSlots.filter(slot => {
     // Convert slot time to 24-hour format for comparison
     const slotTime = convertTo24Hour(slot);
     
     // Check if this slot conflicts with any occupied slot
-    return !occupiedSlots.some(occupied => {
-      const startTime = occupied.start_time;
-      const endTime = occupied.end_time;
+    const isAvailable = !occupiedSlots.some(occupied => {
+      // Normalize the start and end times to HH:MM format
+      const startTime = normalizeTimeFormat(occupied.start_time);
+      const endTime = normalizeTimeFormat(occupied.end_time);
       
       // Check if the slot falls within the occupied time range
-      return slotTime >= startTime && slotTime < endTime;
+      // Example: If occupied is 09:00-09:30, then:
+      // - 09:00 AM slot conflicts (09:00 >= 09:00 && 09:00 < 09:30) ✓
+      // - 09:15 AM slot conflicts (09:15 >= 09:00 && 09:15 < 09:30) ✓  
+      // - 09:30 AM slot is available (09:30 >= 09:00 && 09:30 < 09:30) ✗
+      const conflict = slotTime >= startTime && slotTime < endTime;
+      
+      if (conflict) {
+        console.log(`❌ Slot ${slot} (${slotTime}) conflicts with occupied ${startTime}-${endTime}`);
+      }
+      
+      return conflict;
     });
+    
+    if (isAvailable) {
+      console.log(`✅ Slot ${slot} (${slotTime}) is available`);
+    }
+    
+    return isAvailable;
   });
+
+  console.log('📊 Filtering result:', {
+    originalSlots: allSlots.length,
+    availableSlots: availableSlots.length,
+    removedSlots: allSlots.length - availableSlots.length
+  });
+
+  return availableSlots;
 }
 
 function convertTo24Hour(time12h: string): string {
@@ -188,6 +224,16 @@ function convertTo24Hour(time12h: string): string {
   }
   
   return `${hours.padStart(2, '0')}:${minutes}`;
+}
+
+function normalizeTimeFormat(timeString: string): string {
+  // Remove seconds if present (e.g., "09:00:00" -> "09:00")
+  // Handle both "HH:MM:SS" and "HH:MM" formats
+  const timeParts = timeString.split(':');
+  const hours = timeParts[0].padStart(2, '0');
+  const minutes = timeParts[1].padStart(2, '0');
+  
+  return `${hours}:${minutes}`;
 }
 
 function generateDefaultTimeSlots(
