@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Calendar, Clock, User, MoveVertical as MoreVertical } from 'lucide-react-native';
+import { Calendar, Clock, User } from 'lucide-react-native';
 import { Booking } from '@/types';
 import { Colors, Theme } from '@/constants/Colors';
 import { formatRelativeDate } from '@/utils/timeUtils';
@@ -16,6 +16,25 @@ export function BookingCard({ booking, type }: BookingCardProps) {
     return formatRelativeDate(dateStr);
   };
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'confirmed':
+        return '#86EFAC'; // Light Green
+      case 'pending':
+        return '#FCD34D'; // Light Orange/Yellow
+      case 'completed':
+        return '#A5B4FC'; // Light Blue
+      case 'cancelled':
+        return '#FCA5A5'; // Light Red
+      default:
+        return Colors.gray400;
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -30,9 +49,9 @@ export function BookingCard({ booking, type }: BookingCardProps) {
             </Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.menuButton}>
-          <MoreVertical size={20} color={Colors.gray400} />
-        </TouchableOpacity>
+        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(booking.status) }]}>
+          <Text style={styles.statusText}>{getStatusText(booking.status)}</Text>
+        </View>
       </View>
 
       <View style={styles.details}>
@@ -107,9 +126,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     color: Theme.colors.textSecondary,
   },
-  menuButton: {
-    padding: 4,
-  },
   details: {
     flexDirection: 'row',
     gap: 16,
@@ -167,5 +183,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter-SemiBold',
     color: Colors.white,
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusText: {
+    fontSize: 12,
+    fontFamily: 'Inter-SemiBold',
+    color: 'white',
   },
 });
