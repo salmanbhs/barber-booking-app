@@ -1,5 +1,108 @@
 import { CompanyConfig } from '@/types';
 import { ApiService } from './apiService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Cache duration for occupied slots: 2 minutes
+const OCCUPIED_SLOTS_CACHE_DURATION = 2 * 60 * 1000; // 2 minutes in milliseconds
+
+interface CachedOccupiedSlots {
+  data: any; // The full API response data
+  timestamp: number;
+}
+
+class OccupiedSlotsCache {
+  private static getCacheKey(barberId: string, date: string): string {
+    return `OCCUPIED_SLOTS_${barberId}_${date}`;
+  }
+
+  static async getCachedSlots(barberId: string, date: string): Promise<any | null> {
+    try {
+      const cacheKey = this.getCacheKey(barberId, date);
+      const cachedDataStr = await AsyncStorage.getItem(cacheKey);
+      
+      if (!cachedDataStr) {
+        console.log('🔍 No cached occupied slots found for', { barberId, date });
+        return null;
+      }
+
+      const cachedData: CachedOccupiedSlots = JSON.parse(cachedDataStr);
+      const now = Date.now();
+      const isExpired = (now - cachedData.timestamp) > OCCUPIED_SLOTS_CACHE_DURATION;
+
+      if (isExpired) {
+        console.log('⏰ Cached occupied slots expired for', { barberId, date, age: Math.round((now - cachedData.timestamp) / 1000), seconds: true });
+        await AsyncStorage.removeItem(cacheKey); // Clean up expired cache
+        return null;
+      }
+
+      console.log('✅ Using cached occupied slots for', { barberId, date, age: Math.round((now - cachedData.timestamp) / 1000), seconds: true });
+      return cachedData.data;
+    } catch (error) {
+      console.error('❌ Error getting cached occupied slots:', error);
+      return null;
+    }
+  }
+
+  static async setCachedSlots(barberId: string, date: string, data: any): Promise<void> {
+    try {
+      const cacheKey = this.getCacheKey(barberId, date);
+      const cacheData: CachedOccupiedSlots = {
+        data,
+        timestamp: Date.now()
+      };
+
+      await AsyncStorage.setItem(cacheKey, JSON.stringify(cacheData));
+      console.log('💾 Cached occupied slots for', { barberId, date });
+    } catch (error) {
+      console.error('❌ Error caching occupied slots:', error);
+    }
+  }
+
+  static async clearCache(barberId?: string, date?: string): Promise<void> {
+    try {
+      if (barberId && date) {
+        // Clear specific cache
+        const cacheKey = this.getCacheKey(barberId, date);
+        await AsyncStorage.removeItem(cacheKey);
+        console.log('🗑️ Cleared occupied slots cache for', { barberId, date });
+      } else {
+        // Clear all occupied slots cache (for debugging/maintenance)
+        const allKeys = await AsyncStorage.getAllKeys();
+        const occupiedSlotsKeys = allKeys.filter(key => key.startsWith('OCCUPIED_SLOTS_'));
+        await AsyncStorage.multiRemove(occupiedSlotsKeys);
+        console.log('🗑️ Cleared all occupied slots cache', { count: occupiedSlotsKeys.length });
+      }
+    } catch (error) {
+      console.error('❌ Error clearing occupied slots cache:', error);
+    }
+  }
+}
+
+// Export the cache utility for external use
+export { OccupiedSlotsCache };
+
+// Utility function to test cache behavior (for debugging)
+export async function testOccupiedSlotsCache(barberId: string, date: string) {
+  console.log('🧪 Testing occupied slots cache for', { barberId, date });
+  
+  // Test 1: First call (should fetch from API)
+  console.log('🧪 Test 1: First call (should fetch from API)');
+  const slots1 = await generateTimeSlots(date, null, barberId);
+  console.log('🧪 First call result:', slots1.length, 'slots');
+  
+  // Test 2: Second call immediately (should use cache)
+  console.log('🧪 Test 2: Second call immediately (should use cache)');
+  const slots2 = await generateTimeSlots(date, null, barberId);
+  console.log('🧪 Second call result:', slots2.length, 'slots');
+  
+  // Test 3: Manually clear cache and call again
+  console.log('🧪 Test 3: After clearing cache (should fetch from API again)');
+  await OccupiedSlotsCache.clearCache(barberId, date);
+  const slots3 = await generateTimeSlots(date, null, barberId);
+  console.log('🧪 Third call result:', slots3.length, 'slots');
+  
+  console.log('🧪 Cache test completed');
+}
 
 export async function generateTimeSlots(
   selectedDate?: string, 
@@ -33,9 +136,23 @@ export async function generateTimeSlots(
       // Fetch and filter out occupied slots if barberId is provided
       if (barberId && selectedDate) {
         try {
-          const occupiedResponse = await ApiService.getBarberOccupiedSlots(barberId, selectedDate);
-          if (occupiedResponse.success && occupiedResponse.data?.occupied_slots) {
-            const occupiedSlots = occupiedResponse.data.occupied_slots;
+          // First, try to get cached occupied slots
+          let occupiedData = await OccupiedSlotsCache.getCachedSlots(barberId, selectedDate);
+          
+          if (!occupiedData) {
+            // Cache miss - fetch from API
+            console.log('🌐 Fetching occupied slots from API for default slots', { barberId, selectedDate });
+            const occupiedResponse = await ApiService.getBarberOccupiedSlots(barberId, selectedDate);
+            
+            if (occupiedResponse.success && occupiedResponse.data) {
+              occupiedData = occupiedResponse.data;
+              // Cache the response for future use
+              await OccupiedSlotsCache.setCachedSlots(barberId, selectedDate, occupiedData);
+            }
+          }
+          
+          if (occupiedData?.occupied_slots) {
+            const occupiedSlots = occupiedData.occupied_slots;
             return filterAvailableTimeSlots(defaultSlots, occupiedSlots);
           }
         } catch (error) {
@@ -91,9 +208,23 @@ export async function generateTimeSlots(
   // Fetch and filter out occupied slots if barberId is provided
   if (barberId && selectedDate) {
     try {
-      const occupiedResponse = await ApiService.getBarberOccupiedSlots(barberId, selectedDate);
-      if (occupiedResponse.success && occupiedResponse.data?.occupied_slots) {
-        const occupiedSlots = occupiedResponse.data.occupied_slots;
+      // First, try to get cached occupied slots
+      let occupiedData = await OccupiedSlotsCache.getCachedSlots(barberId, selectedDate);
+      
+      if (!occupiedData) {
+        // Cache miss - fetch from API
+        console.log('🌐 Fetching occupied slots from API for', { barberId, selectedDate });
+        const occupiedResponse = await ApiService.getBarberOccupiedSlots(barberId, selectedDate);
+        
+        if (occupiedResponse.success && occupiedResponse.data) {
+          occupiedData = occupiedResponse.data;
+          // Cache the response for future use
+          await OccupiedSlotsCache.setCachedSlots(barberId, selectedDate, occupiedData);
+        }
+      }
+      
+      if (occupiedData?.occupied_slots) {
+        const occupiedSlots = occupiedData.occupied_slots;
         return filterAvailableTimeSlots(slots, occupiedSlots);
       }
     } catch (error) {
