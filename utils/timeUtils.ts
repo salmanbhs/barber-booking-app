@@ -24,7 +24,11 @@ export function generateTimeSlots(
   const workingHours = companyConfig?.working_hours?.[dayOfWeek];
   
   if (!workingHours || !workingHours.isOpen) {
-    return []; // No slots available if the day is closed
+    // If no company config is available or day is closed, return default slots for fallback
+    if (!companyConfig) {
+      return generateDefaultTimeSlots(defaultStartHour, defaultEndHour, interval, targetDate, advanceHours);
+    }
+    return []; // No slots available if the day is explicitly closed
   }
 
   // Get current time for advance booking check
@@ -81,6 +85,11 @@ export function formatDateTime(date: string, time: string): string {
 export function isDateAvailable(date: string, companyConfig?: CompanyConfig | null): boolean {
   const targetDate = new Date(date);
   const dayOfWeek = targetDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+  
+  // If no company config is available, default to weekdays being available
+  if (!companyConfig) {
+    return !['saturday', 'sunday'].includes(dayOfWeek);
+  }
   
   // Check if the day is open
   const workingHours = companyConfig?.working_hours?.[dayOfWeek];
@@ -147,4 +156,41 @@ function convertTo24Hour(time12h: string): string {
   }
   
   return `${hours.padStart(2, '0')}:${minutes}`;
+}
+
+function generateDefaultTimeSlots(
+  startHour: number,
+  endHour: number,
+  interval: number,
+  targetDate: Date,
+  advanceHours: number
+): string[] {
+  const slots: string[] = [];
+  const now = new Date();
+  const isToday = targetDate.toDateString() === now.toDateString();
+  const minimumTime = new Date(now.getTime() + (advanceHours * 60 * 60 * 1000));
+
+  // Generate default time slots from startHour to endHour
+  for (let hour = startHour; hour < endHour; hour++) {
+    for (let minute = 0; minute < 60; minute += interval) {
+      const slotDateTime = new Date(targetDate);
+      slotDateTime.setHours(hour, minute, 0, 0);
+      
+      // Check if this slot is far enough in advance for today
+      if (isToday && slotDateTime <= minimumTime) {
+        continue; // Skip this slot as it's too soon
+      }
+      
+      // Format the time string
+      const timeString = slotDateTime.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+      
+      slots.push(timeString);
+    }
+  }
+
+  return slots;
 }
