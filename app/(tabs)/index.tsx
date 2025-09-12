@@ -18,12 +18,64 @@ export default function DashboardScreen() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
 
-  const upcomingBookings = bookings.filter(booking => 
-    booking.status === 'confirmed' || booking.status === 'pending'
-  );
-  const pastBookings = bookings.filter(booking => 
-    booking.status === 'completed' || booking.status === 'cancelled'
-  );
+  // Helper function to check if booking is in the future
+  const isBookingInFuture = (booking: Booking): boolean => {
+    try {
+      // Combine date and time to create a full datetime
+      const bookingDateTime = new Date(`${booking.date}T${convertTo24Hour(booking.time)}`);
+      const now = new Date();
+      
+      return bookingDateTime > now;
+    } catch (error) {
+      console.error('Error parsing booking date/time:', error, booking);
+      // If there's an error parsing, fall back to status-based logic
+      return booking.status === 'confirmed' || booking.status === 'pending';
+    }
+  };
+
+  // Helper function to convert 12-hour time to 24-hour format for date parsing
+  const convertTo24Hour = (time12h: string): string => {
+    const [time, period] = time12h.split(' ');
+    let [hours, minutes] = time.split(':');
+    
+    if (period === 'PM' && hours !== '12') {
+      hours = String(parseInt(hours) + 12);
+    } else if (period === 'AM' && hours === '12') {
+      hours = '00';
+    }
+    
+    return `${hours.padStart(2, '0')}:${minutes}:00`;
+  };
+
+  // Filter bookings based on actual date/time, not just status
+  const upcomingBookings = bookings.filter(booking => {
+    // Only show confirmed or pending bookings that are in the future
+    const isValidStatus = booking.status === 'confirmed' || booking.status === 'pending';
+    const isInFuture = isBookingInFuture(booking);
+    const isUpcoming = isValidStatus && isInFuture;
+    
+    if (isValidStatus) {
+      console.log(`📅 Booking ${booking.confirmation_code}: ${booking.date} ${booking.time} - ${isInFuture ? 'FUTURE' : 'PAST'} (${booking.status})`);
+    }
+    
+    return isUpcoming;
+  });
+  
+  const pastBookings = bookings.filter(booking => {
+    // Show completed/cancelled bookings OR confirmed/pending bookings that are in the past
+    const isCompletedOrCancelled = booking.status === 'completed' || booking.status === 'cancelled';
+    const isInPast = !isBookingInFuture(booking);
+    const isPendingButPast = (booking.status === 'confirmed' || booking.status === 'pending') && isInPast;
+    
+    return isCompletedOrCancelled || isPendingButPast;
+  });
+
+  // Debug logging for booking categorization
+  console.log(`📊 Dashboard booking summary:`, {
+    total: bookings.length,
+    upcoming: upcomingBookings.length,
+    past: pastBookings.length
+  });
 
   useEffect(() => {
     checkUserName();
