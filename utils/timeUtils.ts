@@ -1,9 +1,11 @@
 import { CompanyConfig } from '@/types';
+import { ApiService } from './apiService';
 
-export function generateTimeSlots(
+export async function generateTimeSlots(
   selectedDate?: string, 
-  companyConfig?: CompanyConfig | null
-): string[] {
+  companyConfig?: CompanyConfig | null,
+  barberId?: string
+): Promise<string[]> {
   const slots: string[] = [];
   
   // Default values if no company config is available
@@ -26,7 +28,23 @@ export function generateTimeSlots(
   if (!workingHours || !workingHours.isOpen) {
     // If no company config is available or day is closed, return default slots for fallback
     if (!companyConfig) {
-      return generateDefaultTimeSlots(defaultStartHour, defaultEndHour, interval, targetDate, advanceHours);
+      const defaultSlots = generateDefaultTimeSlots(defaultStartHour, defaultEndHour, interval, targetDate, advanceHours);
+      
+      // Fetch and filter out occupied slots if barberId is provided
+      if (barberId && selectedDate) {
+        try {
+          const occupiedResponse = await ApiService.getBarberOccupiedSlots(barberId, selectedDate);
+          if (occupiedResponse.success && occupiedResponse.data?.occupied_slots) {
+            const occupiedSlots = occupiedResponse.data.occupied_slots;
+            return filterAvailableTimeSlots(defaultSlots, occupiedSlots);
+          }
+        } catch (error) {
+          console.warn('Failed to fetch occupied slots for default slots, showing all available slots:', error);
+          // Continue with unfiltered slots if API call fails
+        }
+      }
+      
+      return defaultSlots;
     }
     return []; // No slots available if the day is explicitly closed
   }
@@ -69,6 +87,20 @@ export function generateTimeSlots(
       slots.push(timeString);
     }
   });
+
+  // Fetch and filter out occupied slots if barberId is provided
+  if (barberId && selectedDate) {
+    try {
+      const occupiedResponse = await ApiService.getBarberOccupiedSlots(barberId, selectedDate);
+      if (occupiedResponse.success && occupiedResponse.data?.occupied_slots) {
+        const occupiedSlots = occupiedResponse.data.occupied_slots;
+        return filterAvailableTimeSlots(slots, occupiedSlots);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch occupied slots, showing all available slots:', error);
+      // Continue with unfiltered slots if API call fails
+    }
+  }
 
   return slots;
 }

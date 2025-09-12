@@ -12,6 +12,8 @@ export default function SelectTimeScreen() {
   const { companyConfig, isLoading: configLoading } = useCompanyConfig();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedTime, setSelectedTime] = useState('');
+  const [timeSlots, setTimeSlots] = useState<string[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
 
   // Generate dates based on company config availability
   const dates = Array.from({ length: 7 }, (_, i) => {
@@ -22,9 +24,31 @@ export default function SelectTimeScreen() {
   .filter(Boolean) // Remove any falsy values
   .filter(date => isDateAvailable(date, companyConfig)); // Filter based on working days
 
-  // Generate all possible time slots and filter out occupied ones
-  // Generate time slots based on company config and selected date
-  const timeSlots = generateTimeSlots(selectedDate, companyConfig);
+  // Load time slots when date or config changes
+  useEffect(() => {
+    const loadTimeSlots = async () => {
+      if (!selectedDate) return;
+      
+      setSlotsLoading(true);
+      setSelectedTime(''); // Clear selected time when date changes
+      try {
+        const slots = await generateTimeSlots(
+          selectedDate, 
+          companyConfig, 
+          barberId as string
+        );
+        setTimeSlots(slots);
+      } catch (error) {
+        console.error('Error loading time slots:', error);
+        setTimeSlots([]);
+      } finally {
+        setSlotsLoading(false);
+      }
+    };
+
+    loadTimeSlots();
+  }, [selectedDate, companyConfig, barberId]);
+
   const availableTimeSlots = timeSlots;
 
   // Loading state
@@ -120,9 +144,18 @@ export default function SelectTimeScreen() {
           <View style={styles.sectionHeader}>
             <Clock size={20} color="#1E293B" />
             <Text style={styles.sectionTitle}>Available Times</Text>
+            {slotsLoading && (
+              <Text style={styles.loadingText}>Loading slots...</Text>
+            )}
           </View>
           
-          {availableTimeSlots && availableTimeSlots.length > 0 ? (
+          {slotsLoading ? (
+            <View style={styles.noSlotsContainer}>
+              <Text style={styles.noSlotsText}>
+                Loading available time slots...
+              </Text>
+            </View>
+          ) : availableTimeSlots && availableTimeSlots.length > 0 ? (
             <TimeSlotGrid
               slots={availableTimeSlots}
               selectedSlot={selectedTime || ''}
