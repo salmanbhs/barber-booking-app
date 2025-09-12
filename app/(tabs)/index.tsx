@@ -310,7 +310,7 @@ export default function DashboardScreen() {
             <FlatList
               data={upcomingBookings}
               renderItem={({ item }) => (
-                <BookingCard booking={item} type="upcoming" />
+                <BookingCard booking={item} type="upcoming" onBookingUpdated={refreshBookings} />
               )}
               keyExtractor={(item) => item.id}
               scrollEnabled={false}
@@ -339,7 +339,7 @@ export default function DashboardScreen() {
             <FlatList
               data={pastBookings}
               renderItem={({ item }) => (
-                <BookingCard booking={item} type="past" />
+                <BookingCard booking={item} type="past" onBookingUpdated={refreshBookings} />
               )}
               keyExtractor={(item) => item.id}
               scrollEnabled={false}

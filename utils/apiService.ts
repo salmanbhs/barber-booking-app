@@ -656,4 +656,46 @@ export class ApiService {
       };
     }
   }
+
+  // Cancel/Delete a booking
+  static async cancelBooking(bookingId: string): Promise<ApiResponse> {
+    try {
+      const url = `${API_BASE_URL}/api/bookings/${bookingId}`;
+      logApiCall(`Cancelling booking at: ${url}`);
+      
+      const response = await this.makeAuthenticatedRequest(`/api/bookings/${bookingId}`, {
+        method: 'DELETE',
+      });
+
+      const responseData = await response.json();
+      logApiCall(`Cancel booking response: ${response.ok ? 'Success' : 'Failed'}`);
+      logApiCall(`Response data: ${JSON.stringify(responseData, null, 2)}`);
+
+      if (response.ok && responseData.success) {
+        logApiCall(`Booking cancelled successfully: ${bookingId}`);
+        
+        return {
+          success: true,
+          data: responseData.data,
+          message: responseData.message || 'Booking cancelled successfully',
+        };
+      } else {
+        // Handle error response format {error: "message"}
+        const errorMessage = responseData.error || responseData.message || 'Failed to cancel booking';
+        logApiCall(`Booking cancellation failed: ${errorMessage}`);
+        
+        return {
+          success: false,
+          data: null,
+          message: errorMessage,
+        };
+      }
+    } catch (error) {
+      console.error('Cancel booking error:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Network error occurred while cancelling booking',
+      };
+    }
+  }
 }
