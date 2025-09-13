@@ -44,8 +44,62 @@ export default function SummaryScreen() {
   };
 
   const convertTo24Hour = (time12h: string): string => {
-    const [time, period] = time12h.split(' ');
-    let [hours, minutes] = time.split(':');
+    console.log('🕐 Converting time to 24-hour format:', time12h);
+    
+    if (!time12h || typeof time12h !== 'string') {
+      console.error('❌ Invalid input to convertTo24Hour:', time12h);
+      throw new Error('Invalid time input');
+    }
+    
+    // Handle different types of space characters (regular space, non-breaking space, etc.)
+    const parts = time12h.trim().split(/\s+/);
+    console.log('🔍 Split parts:', parts, 'Length:', parts.length);
+    
+    if (parts.length !== 2) {
+      // Try alternative approach - look for AM/PM at the end
+      const ampmMatch = time12h.match(/^(.+?)\s*(AM|PM)$/i);
+      if (ampmMatch) {
+        const [, timePart, period] = ampmMatch;
+        console.log('🔍 Regex match found:', { timePart, period });
+        
+        const timeParts = timePart.trim().split(':');
+        if (timeParts.length !== 2) {
+          console.error('❌ Time does not have hours:minutes format:', timePart);
+          throw new Error('Time must be in H:MM or HH:MM format');
+        }
+        
+        let [hours, minutes] = timeParts;
+        console.log('🔍 Time parts:', { hours, minutes, period });
+        
+        if (period.toUpperCase() === 'PM' && hours !== '12') {
+          hours = String(parseInt(hours) + 12);
+        } else if (period.toUpperCase() === 'AM' && hours === '12') {
+          hours = '00';
+        }
+        
+        const result = `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+        console.log('✅ Converted time:', `${time12h} -> ${result}`);
+        
+        return result;
+      } else {
+        console.error('❌ Time does not have AM/PM:', time12h, 'Parts:', parts);
+        throw new Error('Time must include AM or PM');
+      }
+    }
+    
+    const [time, period] = parts;
+    console.log('🔍 Extracted time and period:', { time, period });
+    
+    const timeParts = time.split(':');
+    
+    if (timeParts.length !== 2) {
+      console.error('❌ Time does not have hours:minutes format:', time);
+      throw new Error('Time must be in H:MM or HH:MM format');
+    }
+    
+    let [hours, minutes] = timeParts;
+    
+    console.log('🔍 Time parts:', { hours, minutes, period });
     
     if (period === 'PM' && hours !== '12') {
       hours = String(parseInt(hours) + 12);
@@ -53,7 +107,17 @@ export default function SummaryScreen() {
       hours = '00';
     }
     
-    return `${hours.padStart(2, '0')}:${minutes}`;
+    const result = `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+    console.log('✅ Converted time:', `${time12h} -> ${result}`);
+    
+    // Validate the result format
+    const resultPattern = /^\d{2}:\d{2}$/;
+    if (!resultPattern.test(result)) {
+      console.error('❌ Result is not in HH:MM format:', result);
+      throw new Error('Conversion failed to produce HH:MM format');
+    }
+    
+    return result;
   };
 
   const handleConfirmBooking = async () => {
@@ -62,14 +126,26 @@ export default function SummaryScreen() {
     setIsLoading(true);
 
     try {
+      console.log('🔍 Input time value:', time, 'Type:', typeof time);
+      
+      if (!time || typeof time !== 'string') {
+        throw new Error('Invalid time value');
+      }
+      
+      const convertedTime = convertTo24Hour(time as string);
+      
+      console.log('🎯 Final converted time for API:', convertedTime);
+      
       const bookingData = {
         appointment_date: date as string,
-        appointment_time: convertTo24Hour(time as string), // Convert to HH:MM format
+        appointment_time: convertedTime,
         services: serviceIds,
         barber_id: barberId as string,
         notes: '',
         special_requests: ''
       };
+
+      console.log('📅 Booking data being sent to API:', JSON.stringify(bookingData, null, 2));
 
       const response = await ApiService.createBooking(bookingData);
 
